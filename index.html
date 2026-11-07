@@ -516,7 +516,7 @@ body.receipt-mode .grid input,body.receipt-mode .grid select{border-radius:7px!i
 <div><label>کرنسي</label><select id="currency"><option value="AFN">افغاني (AFN)</option><option value="PKR">کالدارې (PKR)</option><option value="USD">امریکايي ډالر (USD)</option></select></div>
 <div><label>هجري شمسي نېټه</label><input id="solarDate" readonly></div>
 <div id="gregDateWrap"><label>میلادي نېټه</label><input id="gregDate" type="date"><span id="gregDatePrint" class="print-date"></span></div>
-<div id="docNoWrap"><label id="docNoLabel">د بیل نمبر</label><input id="docNo" type="text" value="32" readonly aria-label="د بیل نمبر"></div>
+<div id="docNoWrap"><label id="docNoLabel">د بیل نمبر</label><input id="docNo" type="text" value="51" readonly aria-label="د بیل نمبر"></div>
 </div>
 <div id="itemsWrap"><table><thead><tr><th>شمېره</th><th>د توکي نوم</th><th>تعداد</th><th>د یوې دانې قیمت</th><th>ټول قیمت</th><th class="no-print">لرې کول</th></tr></thead><tbody id="items"></tbody></table><div class="quantity-summary-final" aria-live="polite"><strong class="quantity-total-cell"><span>د ټولو تعدادونو جمله</span><br><b id="totalQty">0</b></strong><span></span><span></span><span></span><span></span><span></span></div><button class="no-print secondary" onclick="addItem()">+ نوی توکی زیات کړئ</button></div>
 <div id="invoiceTotal"><div class="sum"><strong>د بل ټول مبلغ</strong><strong id="grandTotal">0 AFN</strong></div><div id="oldAccountWrap" class="sum"><label for="oldAccount"><strong>زوړ حساب</strong></label><button type="button" class="secondary no-print" onclick="openOldAccountPicker()">د زړو حسابونو انتخاب</button><input id="oldAccount" type="number" min="0" step="any" value="0" placeholder="د پخواني حساب اندازه"></div><div class="sum"><strong>د زاړه حساب سره ټول مبلغ</strong><strong id="combinedTotal">0 AFN</strong></div><div id="amountWrap" class="sum"><label for="received"><strong>وصول شوې پیسې</strong></label><input id="received" type="number" min="0" step="any" placeholder="د ترلاسه شویو پیسو اندازه"></div><div class="sum"><strong>پاتې پیسې</strong><strong id="balanceDue">0 AFN</strong></div></div>
@@ -1580,7 +1580,7 @@ function clearStockSearch(){const input=document.getElementById('stockSearchInpu
   function writeCounter(type,n){try{const c=readCounters();c[type]=Math.max(Number(c[type])||0,Number(n)||0);localStorage.setItem(KEY,JSON.stringify(c))}catch(e){}}
   function docs(){try{const d=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');return Array.isArray(d)?d:[]}catch(e){return []}}
   function maxSaved(type){return docs().filter(x=>x&&x.type===type).reduce((m,x)=>Math.max(m,parseInt(String(x.no??'').replace(/[^0-9]/g,''),10)||0),0)}
-  function next(type){const base=type==='invoice'?32:1;const c=readCounters();return Math.max(base,maxSaved(type)+1,Number(c[type])||0)}
+  function next(type){const base=type==='invoice'?51:1;const c=readCounters();return Math.max(base,maxSaved(type)+1,Number(c[type])||0)}
   // Replace the global number generator without changing other app functions.
   window.nextNo=next;
   window.refreshDocNo=function(){const el=document.getElementById('docNo');if(el)el.value=String(next(window.mode||'invoice'))};
@@ -1604,7 +1604,7 @@ function clearStockSearch(){const input=document.getElementById('stockSearchInpu
   }
   // On every reopen, prefer the saved counter and saved documents, never reset to 32.
   function initialise(){
-    ['invoice','receipt'].forEach(t=>{const n=Math.max(t==='invoice'?32:1,maxSaved(t)+1);writeCounter(t,n)});
+    ['invoice','receipt'].forEach(t=>{const n=Math.max(t==='invoice'?51:1,maxSaved(t)+1);writeCounter(t,n)});
     syncVisible();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialise,{once:true});else initialise();
