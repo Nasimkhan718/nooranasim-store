@@ -545,6 +545,8 @@ body.receipt-mode .grid input,body.receipt-mode .grid select{border-radius:7px!i
 <h2>د حساب کتابچه</h2>
 <div class="actions"><button type="button" id="sideCustomer" onclick="setLedgerSide('customer')">خلګ زموږ قرضداره دي</button><button type="button" id="sideSupplier" class="secondary" onclick="setLedgerSide('supplier')">موږ د خلګو قرضداره یو</button></div>
 <div class="actions currency-categories"><button type="button" id="catAFN" onclick="setLedgerCurrency('AFN')">افغاني</button><button type="button" id="catPKR" class="secondary" onclick="setLedgerCurrency('PKR')">کالدارې</button><button type="button" id="catUSD" class="secondary" onclick="setLedgerCurrency('USD')">ډالر</button></div>
+<div class="actions no-print" style="margin:6px 0"><button type="button" id="tiedToggle" onclick="toggleTied()" style="flex:1;min-width:150px;background:#7a4f10">📌 زما او نوراحمد پیسې بندي (ډالر)</button><button type="button" class="gold" id="ledgerPdfBtn" onclick="shareFullLedgerPDF()" style="flex:1;min-width:150px">📄 ټوله د حساب کتابچه PDF — استول</button></div>
+<div id="tiedPanel" class="panel hide no-print" style="background:#fff8e8;border:2px solid #b68a36"></div>
 <div class="grid"><div><label>د سړي / شرکت نوم</label><input id="partyName" placeholder="نوم ولیکئ"></div><div><label>پخوانی پاتې قرض (که وي)</label><input id="partyOpening" type="number" min="0" step="any" value="0" placeholder="0"></div></div>
 <div class="actions"><button onclick="addParty()">+ حساب جوړول</button></div>
 <hr>
@@ -674,10 +676,10 @@ function renderItems(){$('items').innerHTML='';items.forEach((it,i)=>{let tr=doc
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function calc(){let total=items.reduce((s,x)=>s+(Number(x.qty)||0)*(Number(x.price)||0),0);let totalQty=items.reduce((s,x)=>s+(Number(x.qty)||0),0);if($('totalQty'))$('totalQty').textContent=new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(totalQty);let oldAccount=Number($('oldAccount').value)||0;let combined=total+oldAccount;let received=Number($('received').value)||0;$('grandTotal').textContent=money(total);$('combinedTotal').textContent=money(combined);$('balanceDue').textContent=money(Math.max(0,combined-received));$('receiptAmount').textContent=money($('received').value);document.querySelectorAll('.lineTotal').forEach((el,i)=>el.textContent=money((Number(items[i]?.qty)||0)*(Number(items[i]?.price)||0)))}
 function saveDoc(){if(!$('customer').value.trim()){alert('مهرباني وکړئ د مشتری نوم ولیکئ.');$('customer').focus();return}if(mode==='receipt'&&(!(Number($('received').value)>0))){alert('د ترلاسه شویو پیسو اندازه ولیکئ.');$('received').focus();return}let docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');let existingIndex=editingDocKey?docs.findIndex(x=>x.created===editingDocKey):-1;let old=existingIndex>=0?docs[existingIndex]:null;let no=old?old.no:(Number($('docNo').value)||nextNo(mode));let itemTotal=items.reduce((sum,x)=>sum+(Number(x.qty)||0)*(Number(x.price)||0),0);let oldAccount=mode==='invoice'?(Number($('oldAccount').value)||0):0;let combinedTotal=itemTotal+oldAccount;let doc={type:mode,no,customer:$('customer').value.trim(),currency:$('currency').value,gregDate:$('gregDate').value,solarDate:$('solarDate').value,items:mode==='invoice'?items.map(x=>({...x})):[],total:mode==='invoice'?itemTotal:Number($('received').value)||0,oldAccount,combinedTotal,received:Number($('received').value)||0,createLedgerAccount:old?!!old.createLedgerAccount:false,bookmarkedToBook:old?!!old.bookmarkedToBook:false,balance:mode==='invoice'?Math.max(0,combinedTotal-(Number($('received').value)||0)):0,created:old?old.created:new Date().toISOString()};if(existingIndex>=0)docs[existingIndex]=doc;else docs.push(doc);localStorage.setItem('mirrorDocs',JSON.stringify(docs));let postedAutomatically=false;if(mode==='invoice')postedAutomatically=autoPostInvoiceToLedger(doc);editingDocKey=null;alert(old?'بدلونونه په پخواني سند کې خوندي شول.':(postedAutomatically?'بیل خوندي شو او د مشتری حساب کتابچې ته هم جمع شو.':'سند خوندي شو.'));try{sessionStorage.removeItem('NN_FORM_STATE_V2')}catch(e){}newDoc()}
-function showSaved(){ $('editor').classList.add('hide');$('savedPanel').classList.remove('hide');let docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');let pending=JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]');let docHtml=docs.slice().reverse().map(d=>`<div class="saved ${d.bookmarkedToBook?'bookmarked':''}"><div class="saved-main"><div>${d.type==='invoice'?'خرڅلاو بیل':'د پیسو رسید'} #${d.no} — ${esc(d.customer||'بې نومه')} — ${new Intl.NumberFormat('en-US').format(d.total)} ${d.currency} — ${esc(d.solarDate||d.gregDate||'')}</div><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:7px"><label class="book-check ${d.bookmarkedToBook?'book-done':''}"><input type="checkbox" ${d.bookmarkedToBook?'checked':''} onchange="toggleBookMark('${d.created}',this.checked)"> ${d.bookmarkedToBook?'✓ کتابچي ته حساب رسول شوی':'کتابچي ته حساب ورسوم'}</label>${d.type==='invoice'?`<label class="book-check" style="background:#edf7ff;border:1px solid #8bb9e8;border-radius:8px;padding:6px 9px;color:#123b63"><input type="checkbox" ${d.createLedgerAccount?'checked':''} onchange="toggleCreateLedger('${d.created}',this.checked)"> که حساب نه وي، په دې کرنسي کې یې جوړ او بیل جمع کړه</label>`:''}<button type="button" class="secondary" onclick="openSavedReadOnly('${d.created}')">👁 کتل / استول (یوازې لوستل)</button></div></div><button onclick="loadDoc('${d.created}')">کتل / سمون</button><button class="secondary" onclick="deleteSavedDoc('${d.created}')">ډیلیټ</button></div>`).join('');let pendingHtml=pending.slice().reverse().map(t=>`<div class="saved"><div class="saved-main"><b>${esc(t.partyName)} — ${t.kind==='account'?(t.how==='deleted'?'ډیلیټ شوی حساب ('+(t.partyType==='supplier'?'موږ د خلګو قرضداره یو':'خلګ زموږ قرضداره دي')+')':t.partyType==='supplier'?'نوی حساب (موږ د خلګو قرضداره یو)':'نوی حساب (خلګ زموږ قرضداره دي)'):t.kind==='payment'?(t.partyType==='supplier'?'موږ پیسې ورکړې':'پیسې وصول شوې'):'معامله'} </b><div>مبلغ: ${new Intl.NumberFormat('en-US').format(t.amount)} ${esc(t.currency)} | پاتې حساب: ${new Intl.NumberFormat('en-US').format(t.after)} ${esc(t.currency)} | تاریخ: ${esc(t.date)}</div><label class="book-check"><input type="checkbox" onchange="markLedgerReceiptDelivered('${t.id}',this.checked)"> کتابچي ته حساب ورسوم</label></div>${t.kind==='account'?'':`<button class="secondary" onclick="reprintTxn('${t.id}')">رسید کتل / استول</button>`}</div>`).join('');$('savedList').innerHTML=(pending.length?'<h3>د حساب کتابچې وصولۍ او ورکړې — د کتابچي د تایید لپاره</h3>'+pendingHtml:'')+(docHtml||'')||'تر اوسه سندونه نه دي خوندي شوي.'}
+function showSaved(){ $('editor').classList.add('hide');$('savedPanel').classList.remove('hide');let docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');let pending=JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]');let docHtml=docs.slice().reverse().map(d=>`<div class="saved ${d.bookmarkedToBook?'bookmarked':''}"><div class="saved-main"><div>${d.type==='invoice'?'خرڅلاو بیل':'د پیسو رسید'} #${d.no} — ${esc(d.customer||'بې نومه')} — ${new Intl.NumberFormat('en-US').format(d.total)} ${d.currency} — ${esc(d.solarDate||d.gregDate||'')}</div><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:7px"><label class="book-check ${d.bookmarkedToBook?'book-done':''}"><input type="checkbox" ${d.bookmarkedToBook?'checked':''} onchange="toggleBookMark('${d.created}',this.checked)"> ${d.bookmarkedToBook?'✓ کتابچي ته حساب رسول شوی':'کتابچي ته حساب ورسوم'}</label>${d.type==='invoice'?`<label class="book-check" style="background:#edf7ff;border:1px solid #8bb9e8;border-radius:8px;padding:6px 9px;color:#123b63"><input type="checkbox" ${d.createLedgerAccount?'checked':''} onchange="toggleCreateLedger('${d.created}',this.checked)"> که حساب نه وي، په دې کرنسي کې یې جوړ او بیل جمع کړه</label>`:''}<button type="button" class="secondary" onclick="openSavedReadOnly('${d.created}')">👁 کتل / استول (یوازې لوستل)</button></div></div><button onclick="loadDoc('${d.created}')">کتل / سمون</button><button class="secondary" onclick="deleteSavedDoc('${d.created}')">ډیلیټ</button></div>`).join('');let pendingHtml=pending.slice().reverse().map(t=>`<div class="saved"><div class="saved-main"><b>${esc(t.partyName)} — ${t.kind==='account'?(t.how==='deleted'?'ډیلیټ شوی حساب ('+(t.partyType==='supplier'?'موږ د خلګو قرضداره یو':'خلګ زموږ قرضداره دي')+')':t.partyType==='supplier'?'نوی حساب (موږ د خلګو قرضداره یو)':'نوی حساب (خلګ زموږ قرضداره دي)'):t.kind==='payment'?(t.partyType==='supplier'?'موږ پیسې ورکړې':'پیسې وصول شوې'):t.kind==='debt'?(t.partyType==='supplier'?'زموږ قرض زیات شو':'قرض زیات شو'):'معامله'} </b><div>مبلغ: ${new Intl.NumberFormat('en-US').format(t.amount)} ${esc(t.currency)} | پاتې حساب: ${new Intl.NumberFormat('en-US').format(t.after)} ${esc(t.currency)} | تاریخ: ${esc(t.date)}</div><label class="book-check"><input type="checkbox" onchange="markLedgerReceiptDelivered('${t.id}',this.checked)"> کتابچي ته حساب ورسوم</label></div>${t.kind==='account'?'':`<button class="secondary" onclick="reprintTxn('${t.id}')">رسید کتل / استول</button>`}</div>`).join('');$('savedList').innerHTML=(pending.length?'<h3>د حساب کتابچې وصولۍ او ورکړې — د کتابچي د تایید لپاره</h3>'+pendingHtml:'')+(docHtml||'')||'تر اوسه سندونه نه دي خوندي شوي.'}
 function markLedgerReceiptDelivered(id,checked){if(!checked)return;let pending=JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]');let t=pending.find(x=>x.id===id);if(!t)return;if(!confirm('ایا مطمئن یاست چې د «'+(t.partyName||'بې نومه')+'» د حساب کتابچې ته د رسېدو نښه تایید او دا رسید له خوندي اسنادو څخه لرې کړئ؟')){showSaved();return;}if(!confirm('دوهم تایید: دا رسید به د خوندي اسنادو له دې انتظار لېست څخه حذف شي. ایا رښتیا هم دوام ورکوئ؟')){showSaved();return;}pending=pending.filter(x=>x.id!==id);localStorage.setItem('NN_PENDING_LEDGER_RECEIPTS',JSON.stringify(pending));showSaved()}
 
-function toggleCreateLedger(key,checked){let docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');let d=docs.find(x=>x.created===key);if(!d)return;d.createLedgerAccount=checked;localStorage.setItem('mirrorDocs',JSON.stringify(docs));let posted=false;if(checked&&d.type==='invoice')posted=autoPostInvoiceToLedger(d);showSaved();if(checked){if(posted)alert('د بیل حساب د مشتری په کتابچه کې جمع شو.');else if(!findLedgerParty(d.customer,d.currency))alert('حساب جوړ نه شو؛ وګورئ چې د بیل مبلغ له صفر څخه زیات وي او مشتری نوم سم وي.');}}
+function toggleCreateLedger(key,checked){let docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');let d=docs.find(x=>x.created===key);if(!d)return;d.createLedgerAccount=checked;localStorage.setItem('mirrorDocs',JSON.stringify(docs));let posted=false;if(checked&&d.type==='invoice')posted=autoPostInvoiceToLedger(d);showSaved();if(checked){if(posted)alert('د بیل حساب د مشتری په کتابچه کې جمع شو.');else if(!findLedgerParty(d.customer,d.currency))alert('حساب جوړ نه شو. که بیل بشپړ ورکړل شوی وي (پاتې حساب صفر)، د قرضدارۍ حساب نه جوړېږي. که نه، د مشتری نوم او مبلغ وګورئ.');}}
 function toggleBookMark(key,checked){let docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');let d=docs.find(x=>x.created===key);if(!d)return;d.bookmarkedToBook=checked;localStorage.setItem('mirrorDocs',JSON.stringify(docs));showSaved()}
 function openSavedReadOnly(key){
  const docs=JSON.parse(localStorage.getItem('mirrorDocs')||'[]');const d=docs.find(x=>x.created===key);if(!d){alert('دا سند ونه موندل شو.');return}
@@ -699,7 +701,7 @@ function newDoc(){ editingDocKey=null;$('customer').value='';$('received').value
 // د ټولو اپلیکیشن معلومات په یوه بیک‌اپ فایل کې خوندي کول؛ اصلي معلومات نه حذفوي.
 async function backupAllData(){
   try{
-    const payload={app:'NoorNasimAutoGlass',backupVersion:1,createdAt:new Date().toISOString(),docs:JSON.parse(localStorage.getItem('mirrorDocs')||'[]'),pendingLedgerReceipts:JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]'),ledger:ledgerData(),deletedPartyIds:getDeletedPartyIds(),inventory:stockData()};
+    const payload={app:'NoorNasimAutoGlass',backupVersion:1,createdAt:new Date().toISOString(),docs:JSON.parse(localStorage.getItem('mirrorDocs')||'[]'),pendingLedgerReceipts:JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]'),ledger:ledgerData(),deletedPartyIds:getDeletedPartyIds(),inventory:stockData(),tiedMoney:(typeof tiedData==='function'?tiedData():null)};
     const textData=JSON.stringify(payload,null,2);
     const blob=new Blob([textData],{type:'application/json'});
     // که براوزر د فایل د خوندي کولو ملاتړ کوي، کاروونکی کولای شي هماغه پخوانی فایل انتخاب او بدل یې کړي.
@@ -731,7 +733,7 @@ function restoreAllData(){
       // ډیلیټ شوي حسابونه او د هغو ټولې معاملې له بیک‌اپ څخه هم بېرته نه راګرځي.
       parties=parties.filter(p=>!deletedIds.has(p.id));transactions=transactions.filter(t=>!deletedIds.has(t.partyId));
       localStorage.setItem('mirrorDocs',JSON.stringify(docs));localStorage.setItem(DELETED_PARTIES_KEY,JSON.stringify([...deletedIds]));ledgerSave({parties,transactions});if(incoming.inventory&&Array.isArray(incoming.inventory.categories)){const cur=stockData();const cats=[...cur.categories];for(const c of incoming.inventory.categories){const i=cats.findIndex(x=>x.id===c.id);if(i<0)cats.push(c);else cats[i]=c;}stockSave({categories:cats});}
-      alert('بریالی شو! د بیلونو، رسیدونو او د حساب کتابچې معلومات بېرته داخل شول.');
+      try{if(incoming.tiedMoney&&Array.isArray(incoming.tiedMoney.items)){const ct=tiedData(),items=[...ct.items];for(const it of incoming.tiedMoney.items){const k=items.findIndex(x=>x.id===it.id);if(k<0)items.push(it)}tiedSave({items,includeInTotal:ct.includeInTotal||!!incoming.tiedMoney.includeInTotal})}}catch(e){}alert('بریالی شو! د بیلونو، رسیدونو او د حساب کتابچې معلومات بېرته داخل شول.');
       if(!$('ledgerPanel').classList.contains('hide'))renderLedger();if(!$('savedPanel').classList.contains('hide'))showSaved();
     }catch(e){alert('دا د نوراحمد او نسیم احمد د سیستم سم بیک‌اپ فایل نه دی، یا خراب شوی دی. اصلي حسابونه مو بدل نه شول.')}};
     r.readAsText(file);
@@ -760,8 +762,8 @@ function findLedgerParty(name,currency){const d=ledgerData();return d.parties.fi
 function autofillOldAccount(){if(mode!=='invoice')return;const name=$('customer').value.trim(),currency=$('currency').value;const p=name?findLedgerParty(name,currency):null;const d=ledgerData();$('oldAccount').value=p?Math.max(0,partyBalance(p,d)):0;calc()}
 function closeOldAccountPicker(){$('oldAccountPicker').classList.add('hide')}
 function openOldAccountPicker(){if(mode!=='invoice'){alert('د زړو حسابونو انتخاب یوازې د بیل لپاره دی.');return}const currency=$('currency').value,d=ledgerData();const people=d.parties.filter(p=>p.type==='customer'&&p.currency===currency).map(p=>({p,balance:partyBalance(p,d)})).filter(x=>x.balance>0.000001).sort((a,b)=>String(a.p.name||'').localeCompare(String(b.p.name||''),'ps'));const list=$('oldAccountPickerList');list.innerHTML='';$('oldAccountPickerInfo').textContent='کرنسي: '+currLabel(currency)+' — د پاتې حساب لرونکي مشتریان: '+people.length;if(!people.length){list.innerHTML='<p style="padding:12px;background:#fff4d8;border-radius:8px">په دې کرنسي کې د پاتې حساب لرونکی مشتری ونه موندل شو.</p>'}else{people.forEach(x=>{const btn=document.createElement('button');btn.type='button';btn.style.cssText='display:flex;width:100%;justify-content:space-between;gap:12px;text-align:right;margin:5px 0;padding:12px;border:1px solid #cbd8e6;border-radius:8px;background:#f7fbff;color:#123;cursor:pointer;font:inherit';const nm=document.createElement('span');nm.textContent=x.p.name;const bal=document.createElement('strong');bal.textContent=fmt(x.balance)+' '+currLabel(currency);btn.append(nm,bal);btn.addEventListener('click',()=>{ $('customer').value=x.p.name; $('oldAccount').value=Math.max(0,x.balance);calc();closeOldAccountPicker(); });list.appendChild(btn)})}$('oldAccountSearch').value='';$('oldAccountSearch').oninput=()=>{const q=$('oldAccountSearch').value.trim().toLocaleLowerCase();Array.from(list.children).forEach(el=>{el.style.display=el.textContent.toLocaleLowerCase().includes(q)?'flex':'none'})};$('oldAccountPicker').classList.remove('hide')}
-function autoPostInvoiceToLedger(doc){try{if(!doc||doc.type!=='invoice'||!(Number(doc.total)>0))return false;const d=ledgerData();if(d.transactions.some(t=>t.sourceDocCreated===doc.created))return false;const name=String(doc.customer||'').trim(),currency=doc.currency||'AFN';if(!name)return false;let p=d.parties.find(x=>x.type==='customer'&&x.currency===currency&&String(x.name||'').trim().toLocaleLowerCase()===name.toLocaleLowerCase());if(!p&&!doc.createLedgerAccount)return false;if(!p){p={id:'p'+Date.now(),name,type:'customer',currency,opening:0,phone:'',created:new Date().toISOString(),settled:false};d.parties.push(p)}const before=partyBalance(p,d),amount=Number(doc.total)||0;d.transactions.push({id:'t'+Date.now(),partyId:p.id,partyName:p.name,currency,kind:'debt',amount,date:doc.gregDate||new Date().toISOString().slice(0,10),note:'د بیل نمبر '+doc.no,paymentMethod:'',before,after:before+amount,created:new Date().toISOString(),sourceDocCreated:doc.created,sourceDocNo:doc.no});p.settled=false;ledgerSave(d);return true}catch(e){console.error(e);return false}}
-function saveInvoiceToLedger(){if(mode!=='invoice'){alert('دا تڼۍ یوازې د خرڅلاو د بیل لپاره ده.');return}const name=$('customer').value.trim(),currency=$('currency').value;if(!name){alert('لومړی د مشتری نوم ولیکئ.');$('customer').focus();return}const ledger=ledgerData();let party=ledger.parties.find(p=>p.type==='customer'&&p.currency===currency&&String(p.name||'').trim().toLocaleLowerCase()===name.toLocaleLowerCase());if(!party){if(!confirm('د «'+name+'» په نوم د '+currLabel(currency)+' حساب په کتابچه کې نشته. نوی حساب جوړ او بیل پکې جمع شي؟'))return;party={id:'p'+Date.now(),name,type:'customer',currency,opening:0,phone:'',created:new Date().toISOString(),settled:false};ledger.parties.push(party)}const itemTotal=items.reduce((sum,x)=>sum+(Number(x.qty)||0)*(Number(x.price)||0),0);if(!(itemTotal>0)){alert('لومړی د بیل توکي او قیمتونه ولیکئ.');return}const priorEditingKey=editingDocKey, intendedNo=$('docNo').value;saveDoc();const docs=getDocsSafe();let doc=priorEditingKey?docs.find(d=>d.created===priorEditingKey):null;if(!doc)doc=docs.filter(d=>d.type==='invoice'&&d.customer.trim().toLocaleLowerCase()===name.toLocaleLowerCase()&&d.currency===currency&&String(d.no)===String(intendedNo)).slice(-1)[0];if(!doc){alert('بیل خوندي نه شو؛ د کتابچې حساب نه دی بدل شوی.');return}if(ledger.transactions.some(t=>t.sourceDocCreated===doc.created)){alert('دا بیل مخکې د حساب کتابچې ته جمع شوی دی؛ دوه ځله نه جمع کېږي.');return}const before=partyBalance(party,ledger);const t={id:'t'+Date.now(),partyId:party.id,partyName:party.name,currency,kind:'debt',amount:itemTotal,date:doc.gregDate||new Date().toISOString().slice(0,10),note:'د بیل نمبر '+doc.no, paymentMethod:'',before,after:before+itemTotal,created:new Date().toISOString(),sourceDocCreated:doc.created,sourceDocNo:doc.no};ledger.transactions.push(t);party.settled=false;ledgerSave(ledger);alert('بیل نمبر '+doc.no+' د '+name+' په حساب کتابچه کې جمع شو. نوی پاتې حساب: '+fmt(t.after)+' '+currLabel(currency)+'.');if(!$('ledgerPanel').classList.contains('hide'))renderLedger();autofillOldAccount()}
+function autoPostInvoiceToLedger(doc){try{if(!doc||doc.type!=='invoice'||!(Number(doc.total)>0))return false;const d=ledgerData();if(d.transactions.some(t=>t.sourceDocCreated===doc.created))return false;const name=String(doc.customer||'').trim(),currency=doc.currency||'AFN';if(!name)return false;const total=Number(doc.total)||0,received=Number(doc.received)||0,net=total-received;let p=d.parties.find(x=>x.type==='customer'&&x.currency===currency&&String(x.name||'').trim().toLocaleLowerCase()===name.toLocaleLowerCase());if(net===0)return false;if(!p&&!(doc.createLedgerAccount&&net>0))return false;if(!p){p={id:'p'+Date.now(),name,type:'customer',currency,opening:0,phone:'',created:new Date().toISOString(),settled:false};d.parties.push(p)}const before=partyBalance(p,d);let kind='debt',amount=net;if(net<0){kind='payment';amount=Math.min(-net,Math.max(0,before));if(!(amount>0))return false}d.transactions.push({id:'t'+Date.now(),partyId:p.id,partyName:p.name,currency,kind,amount,date:doc.gregDate||new Date().toISOString().slice(0,10),note:'د بیل نمبر '+doc.no+(received>0?' (د بیل مبلغ '+fmt(total)+'، ترلاسه شوې '+fmt(received)+')':''),paymentMethod:kind==='payment'?'د بیل له لارې':'',before,after:kind==='debt'?before+amount:before-amount,created:new Date().toISOString(),sourceDocCreated:doc.created,sourceDocNo:doc.no});if(kind==='debt')p.settled=false;else if(before-amount<=0)p.settled=true;ledgerSave(d);return true}catch(e){console.error(e);return false}}
+function saveInvoiceToLedger(){if(mode!=='invoice'){alert('دا تڼۍ یوازې د خرڅلاو د بیل لپاره ده.');return}const name=$('customer').value.trim(),currency=$('currency').value;if(!name){alert('لومړی د مشتری نوم ولیکئ.');$('customer').focus();return}const preItem=items.reduce((sum,x)=>sum+(Number(x.qty)||0)*(Number(x.price)||0),0),preReceived=Number($('received').value)||0,preNet=preItem-preReceived;if(preItem>0&&preNet<=0){alert('دا بیل بشپړ ورکړل شوی دی (پاتې حساب صفر)، نو د قرضدارۍ حساب نه جوړېږي او نه جمع کېږي.');return}const ledger=ledgerData();let party=ledger.parties.find(p=>p.type==='customer'&&p.currency===currency&&String(p.name||'').trim().toLocaleLowerCase()===name.toLocaleLowerCase());if(!party){if(!confirm('د «'+name+'» په نوم د '+currLabel(currency)+' حساب په کتابچه کې نشته. نوی حساب جوړ او بیل پکې جمع شي؟'))return;party={id:'p'+Date.now(),name,type:'customer',currency,opening:0,phone:'',created:new Date().toISOString(),settled:false};ledger.parties.push(party)}const itemTotal=items.reduce((sum,x)=>sum+(Number(x.qty)||0)*(Number(x.price)||0),0);if(!(itemTotal>0)){alert('لومړی د بیل توکي او قیمتونه ولیکئ.');return}const priorEditingKey=editingDocKey, intendedNo=$('docNo').value;saveDoc();const docs=getDocsSafe();let doc=priorEditingKey?docs.find(d=>d.created===priorEditingKey):null;if(!doc)doc=docs.filter(d=>d.type==='invoice'&&d.customer.trim().toLocaleLowerCase()===name.toLocaleLowerCase()&&d.currency===currency&&String(d.no)===String(intendedNo)).slice(-1)[0];if(!doc){alert('بیل خوندي نه شو؛ د کتابچې حساب نه دی بدل شوی.');return}if(ledger.transactions.some(t=>t.sourceDocCreated===doc.created)){alert('دا بیل مخکې د حساب کتابچې ته جمع شوی دی؛ دوه ځله نه جمع کېږي.');return}const before=partyBalance(party,ledger);const t={id:'t'+Date.now(),partyId:party.id,partyName:party.name,currency,kind:'debt',amount:preNet,date:doc.gregDate||new Date().toISOString().slice(0,10),note:'د بیل نمبر '+doc.no+(preReceived>0?' (د بیل مبلغ '+fmt(itemTotal)+'، ترلاسه شوې '+fmt(preReceived)+')':''), paymentMethod:'',before,after:before+preNet,created:new Date().toISOString(),sourceDocCreated:doc.created,sourceDocNo:doc.no};ledger.transactions.push(t);party.settled=false;ledgerSave(ledger);alert('بیل نمبر '+doc.no+' د '+name+' په حساب کتابچه کې جمع شو. نوی پاتې حساب: '+fmt(t.after)+' '+currLabel(currency)+'.');if(!$('ledgerPanel').classList.contains('hide'))renderLedger();autofillOldAccount()}
 function deleteSavedDoc(key){const docs=getDocsSafe(),d=docs.find(x=>x.created===key);if(!d)return;if(!confirm('ایا د «'+(d.customer||'بې نومه')+'» سند نمبر '+d.no+' ډیلیټ کړئ؟ د حساب کتابچې زوړ حساب او معاملې به نه بدلېږي.'))return;if(!confirm('دوهم تایید: سند نمبر '+d.no+' به له خوندي اسنادو څخه حذف شي. ایا په بشپړ ډاډ سره یې حذف کول غواړئ؟'))return;localStorage.setItem('mirrorDocs',JSON.stringify(docs.filter(x=>x.created!==key)));if(editingDocKey===key)editingDocKey=null;showSaved()}
 function askPaymentMethod(){let v=prompt('د پیسو د ورکړې/وصولۍ ډول ولیکئ:\n1 = نقدي\n2 = حواله\n3 = بل ډول','1');if(v===null)return null;v=v.trim();if(v==='1'||v==='نقدي'||v.toLowerCase()==='cash')return 'نقدي';if(v==='2'||v==='حواله'||v.toLowerCase()==='transfer')return 'حواله';return v||'نه دی مشخص شوی'}
 function addTransaction(){
@@ -782,7 +784,7 @@ function addTransaction(){
    let sb=partyBalance(sp,d);d.transactions.push({id:'t'+(Date.now()+2),partyId:sp.id,partyName:sp.name,partyType:'supplier',currency:p.currency,kind:'debt',amount:extra,date,note:'د اضافي وصولۍ له امله؛ د '+p.name+' رسید',paymentMethod:'',before:sb,after:sb+extra,created:new Date().toISOString()});sp.settled=false;
  }
  if(kind==='payment'&&p.type==='customer'&&postedAmount>=before)p.settled=true;else if(kind==='debt')p.settled=false;
- ledgerSave(d);lastLedgerReceipt=t;$('txnAmount').value='';$('txnNote').value='';renderLedger();if($('txnParty').value)renderHistory($('txnParty').value);showTxnReceipt(t);
+ try{let pend=JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]');pend.push({...t});localStorage.setItem('NN_PENDING_LEDGER_RECEIPTS',JSON.stringify(pend))}catch(e){}ledgerSave(d);lastLedgerReceipt=t;$('txnAmount').value='';$('txnNote').value='';renderLedger();if($('txnParty').value)renderHistory($('txnParty').value);showTxnReceipt(t);
 }
 function receiptDates(dateValue){
  const d=(dateValue&&/^\d{4}-\d{2}-\d{2}$/.test(dateValue))?new Date(dateValue+'T12:00:00'):new Date();
@@ -867,11 +869,11 @@ function renderLedger(){
  '<div class="ledger-summary-heading">۴ ـ ټولیز خالص حساب</div>'+
  '<div class="sum"><strong>زموږ ټول ترلاسه کېدونکی حساب (خلک + کمپنۍ)، په ډالرو</strong><strong>'+fmt(totalReceivableUSD)+' ډالر</strong></div>'+
  '<div class="sum"><strong>زموږ د ادا کولو ټول قرض (یوازې خلک)، په ډالرو</strong><strong>'+fmt(toUSD('out'))+' ډالر</strong></div>'+
- '<div class="sum"><strong>خالص پاتې حساب، په ډالرو</strong><strong>'+fmt(totalReceivableUSD-toUSD('out'))+' ډالر</strong></div>';
+ '<div class="sum"><strong>خالص پاتې حساب، په ډالرو</strong><strong>'+fmt(totalReceivableUSD-toUSD('out'))+' ډالر</strong></div>'+(window.tiedSummaryHtml?window.tiedSummaryHtml(totalReceivableUSD-toUSD('out')):'');
  $('partyList').innerHTML=filtered.length?filtered.map(p=>'<div class="saved ledger-person"><div class="saved-main"><b>'+esc(p.name)+'</b><div>پاتې قرض: <b>'+fmt(partyBalance(p,d))+' '+esc(p.currency)+'</b></div></div><div class="ledger-person-buttons"><button onclick="partyAction(\''+p.id+'\',\'debt\')">'+(ledgerSide==='customer'?'قرض اضافه کول':'زموږ قرض زیاتول')+'</button><button class="gold" onclick="partyAction(\''+p.id+'\',\'payment\')">'+(ledgerSide==='customer'?'پیسې راوړل':'پور ادا کول')+'</button><button class="secondary" onclick="partyLastReceipt(\''+p.id+'\')">رسید</button><button class="secondary" onclick="deleteParty(\''+p.id+'\')">حساب ډیلیټ</button></div></div>').join(''):(search?'د دې نوم له مخې حساب پیدا نه شو.':'دلته لا حساب نشته. پورته د سړي نوم ولیکئ او حساب جوړ کړئ.');
 }
 function selectParty(id){$('txnParty').value=id;renderHistory(id)}
-function partyAction(id,kind){let d=ledgerData(),p=d.parties.find(x=>x.id===id);if(!p)return;let label=kind==='debt'?(p.type==='customer'?'نوی قرض اضافه کړئ':'زموږ قرض زیات کړئ'):(p.type==='customer'?'مشتري څومره پیسې راکړې؟':'موږ څومره پیسې ادا کړې؟');let raw=prompt(label+' ('+p.currency+')');if(raw===null)return;let amount=Number(raw);if(!(amount>0)){alert('سم مبلغ ولیکئ.');return}let before=partyBalance(p,d),extra=0,postedAmount=amount;if(kind==='payment'&&p.type==='customer'){extra=Math.max(0,amount-Math.max(0,before));postedAmount=amount-extra;if(extra>0&&!confirm('مشتري '+fmt(Math.max(0,before))+' '+p.currency+' قرضدار دی، خو '+fmt(amount)+' '+p.currency+' ورکوي. اضافي '+fmt(extra)+' '+p.currency+' به د «موږ د خلګو قرضداره یو» صفحې ته انتقال شي. دوام ورکړو؟'))return}else if(kind==='payment'&&p.type==='supplier'){extra=Math.max(0,amount-Math.max(0,before));postedAmount=amount-extra;if(extra>0&&!confirm('موږ د '+p.name+' قرض '+fmt(Math.max(0,before))+' '+p.currency+' دی، خو '+fmt(amount)+' '+p.currency+' ورکوو. اضافي '+fmt(extra)+' '+p.currency+' به په اتومات ډول د «خلګ زموږ قرضداره دي» صفحې ته انتقال شي. دوام ورکړو؟'))return}else if(kind==='payment'&&amount>before&&!confirm('دا اندازه له پاتې قرضه زیاته ده. بیا هم ثبت شي؟'))return;let paymentMethod=kind==='payment'?askPaymentMethod():'';if(kind==='payment'&&paymentMethod===null)return;let date=new Date().toISOString().slice(0,10),t={id:'t'+Date.now(),partyId:p.id,partyName:p.name,partyType:p.type,currency:p.currency,kind,amount,before,after:(kind==='payment'&&p.type==='customer'&&extra>0)?extra:before+(kind==='debt'?amount:-amount),overpayment:extra,date,note:'',paymentMethod,created:new Date().toISOString()};d.transactions.push({...t,amount:postedAmount,after:before+(kind==='debt'?amount:-postedAmount),overpayment:0});if(extra>0){let targetType=p.type==='supplier'?'customer':'supplier';let sp=d.parties.find(x=>x.type===targetType&&x.currency===p.currency&&String(x.name||'').trim().toLocaleLowerCase()===String(p.name||'').trim().toLocaleLowerCase());if(!sp){sp={id:'p'+(Date.now()+1),name:p.name,type:targetType,currency:p.currency,opening:0,phone:p.phone||'',created:new Date().toISOString(),settled:false};d.parties.push(sp)}let sb=partyBalance(sp,d);d.transactions.push({id:'t'+(Date.now()+2),partyId:sp.id,partyName:sp.name,partyType:targetType,currency:p.currency,kind:'debt',amount:extra,date,note:(p.type==='supplier'?'د قرض له اندازې د زیاتې پیسې ادا کولو له امله؛ د ':'د اضافي وصولۍ له امله؛ د ')+p.name+' رسید',paymentMethod:'',before:sb,after:sb+extra,created:new Date().toISOString()});sp.settled=false}if(kind==='payment'&&p.type==='customer'&&postedAmount>=before)p.settled=true;else if(kind==='debt')p.settled=false;if(kind==='payment'){let pending=JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]');pending.push({...t});localStorage.setItem('NN_PENDING_LEDGER_RECEIPTS',JSON.stringify(pending))}ledgerSave(d);lastLedgerReceipt=t;renderLedger();if($('txnParty')&&$('txnParty').value===p.id)renderHistory(p.id);showTxnReceipt(t)}
+function partyAction(id,kind){let d=ledgerData(),p=d.parties.find(x=>x.id===id);if(!p)return;let label=kind==='debt'?(p.type==='customer'?'نوی قرض اضافه کړئ':'زموږ قرض زیات کړئ'):(p.type==='customer'?'مشتري څومره پیسې راکړې؟':'موږ څومره پیسې ادا کړې؟');let raw=prompt(label+' ('+p.currency+')');if(raw===null)return;let amount=Number(raw);if(!(amount>0)){alert('سم مبلغ ولیکئ.');return}let before=partyBalance(p,d),extra=0,postedAmount=amount;if(kind==='payment'&&p.type==='customer'){extra=Math.max(0,amount-Math.max(0,before));postedAmount=amount-extra;if(extra>0&&!confirm('مشتري '+fmt(Math.max(0,before))+' '+p.currency+' قرضدار دی، خو '+fmt(amount)+' '+p.currency+' ورکوي. اضافي '+fmt(extra)+' '+p.currency+' به د «موږ د خلګو قرضداره یو» صفحې ته انتقال شي. دوام ورکړو؟'))return}else if(kind==='payment'&&p.type==='supplier'){extra=Math.max(0,amount-Math.max(0,before));postedAmount=amount-extra;if(extra>0&&!confirm('موږ د '+p.name+' قرض '+fmt(Math.max(0,before))+' '+p.currency+' دی، خو '+fmt(amount)+' '+p.currency+' ورکوو. اضافي '+fmt(extra)+' '+p.currency+' به په اتومات ډول د «خلګ زموږ قرضداره دي» صفحې ته انتقال شي. دوام ورکړو؟'))return}else if(kind==='payment'&&amount>before&&!confirm('دا اندازه له پاتې قرضه زیاته ده. بیا هم ثبت شي؟'))return;let paymentMethod=kind==='payment'?askPaymentMethod():'';if(kind==='payment'&&paymentMethod===null)return;let date=new Date().toISOString().slice(0,10),t={id:'t'+Date.now(),partyId:p.id,partyName:p.name,partyType:p.type,currency:p.currency,kind,amount,before,after:(kind==='payment'&&p.type==='customer'&&extra>0)?extra:before+(kind==='debt'?amount:-amount),overpayment:extra,date,note:'',paymentMethod,created:new Date().toISOString()};d.transactions.push({...t,amount:postedAmount,after:before+(kind==='debt'?amount:-postedAmount),overpayment:0});if(extra>0){let targetType=p.type==='supplier'?'customer':'supplier';let sp=d.parties.find(x=>x.type===targetType&&x.currency===p.currency&&String(x.name||'').trim().toLocaleLowerCase()===String(p.name||'').trim().toLocaleLowerCase());if(!sp){sp={id:'p'+(Date.now()+1),name:p.name,type:targetType,currency:p.currency,opening:0,phone:p.phone||'',created:new Date().toISOString(),settled:false};d.parties.push(sp)}let sb=partyBalance(sp,d);d.transactions.push({id:'t'+(Date.now()+2),partyId:sp.id,partyName:sp.name,partyType:targetType,currency:p.currency,kind:'debt',amount:extra,date,note:(p.type==='supplier'?'د قرض له اندازې د زیاتې پیسې ادا کولو له امله؛ د ':'د اضافي وصولۍ له امله؛ د ')+p.name+' رسید',paymentMethod:'',before:sb,after:sb+extra,created:new Date().toISOString()});sp.settled=false}if(kind==='payment'&&p.type==='customer'&&postedAmount>=before)p.settled=true;else if(kind==='debt')p.settled=false;if(kind==='payment'||kind==='debt'){let pending=JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]');pending.push({...t});localStorage.setItem('NN_PENDING_LEDGER_RECEIPTS',JSON.stringify(pending))}ledgerSave(d);lastLedgerReceipt=t;renderLedger();if($('txnParty')&&$('txnParty').value===p.id)renderHistory(p.id);showTxnReceipt(t)}
 function renderHistory(id){let d=ledgerData(),p=d.parties.find(x=>x.id===id);if(!p){$('txnHistory').innerHTML='';return}let ts=d.transactions.filter(t=>t.partyId===id).slice().reverse();$('txnHistory').innerHTML='<p><b>'+esc(p.name)+'</b> — پیل حساب: '+fmt(p.opening)+' '+esc(p.currency)+' — اوسنی حساب: <b>'+fmt(partyBalance(p,d))+' '+esc(p.currency)+'</b></p>'+(ts.length?ts.map(t=>'<div class="saved"><div class="saved-main"><b>'+esc(t.date)+' — '+(t.kind==='debt'?(p.type==='supplier'?'زموږ پور زیات شو':'پور زیات شو'):(p.type==='supplier'?'موږ پیسې ورکړې':'پیسې وصول شوې'))+'</b><div>'+fmt(t.amount)+' '+esc(t.currency)+' | پاتې: '+fmt(t.after)+' '+esc(t.currency)+' | ډول: '+esc(t.paymentMethod||'—')+' | '+esc(t.note||'')+'</div></div><button onclick="reprintTxn(\''+t.id+'\')">رسید</button></div>').join(''):'تر اوسه معامله نشته.')}
 function reprintTxn(id){let t=ledgerData().transactions.find(x=>x.id===id);if(t){lastLedgerReceipt=t;showTxnReceipt(t)}}
 
@@ -2317,7 +2319,7 @@ function clearStockSearch(){const input=document.getElementById('stockSearchInpu
 'use strict';
 var CFG={apiKey:"AIzaSyCyAcomAb4kgrbAjxBKvjUZKxQZGwSTM44",authDomain:"noor-nasim-store-13e59.firebaseapp.com",projectId:"noor-nasim-store-13e59",storageBucket:"noor-nasim-store-13e59.firebasestorage.app",messagingSenderId:"352426858518",appId:"1:352426858518:web:781a788618c4a1e3c13d37"};
 var SDK='https://www.gstatic.com/firebasejs/10.12.2/';
-var KEYS=['NoorNasimStockV1','mirrorDocs','mirrorLedgerV1','mirrorDeletedPartyIdsV1','NN_NOTES_CATEGORIES_V1','NN_PERSISTENT_NEXT_DOC_NUMBERS_V4','NN_EXCHANGE_RATES','NN_PENDING_LEDGER_RECEIPTS'];
+var KEYS=['NoorNasimStockV1','mirrorDocs','mirrorLedgerV1','mirrorDeletedPartyIdsV1','NN_NOTES_CATEGORIES_V1','NN_PERSISTENT_NEXT_DOC_NUMBERS_V4','NN_EXCHANGE_RATES','NN_PENDING_LEDGER_RECEIPTS','NN_TIED_MONEY_V1'];
 var CHUNK=200000,DIRTY_K='NN_SYNC_DIRTY_V1',DEV_K='NN_SYNC_DEVICE_V1',ONCE_K='NN_SYNC_LOGGED_ONCE_V1';
 var LS=window.localStorage,origSet=Storage.prototype.setItem,origGet=Storage.prototype.getItem,origRem=Storage.prototype.removeItem;
 function $(id){return document.getElementById(id)}
@@ -2456,6 +2458,240 @@ else loadSDK().then(boot).catch(offlineFallback);
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js').catch(function(){});
 }
+})();
+</script>
+
+<script id="tied-money-and-full-ledger-pdf">
+(function(){
+'use strict';
+var TK='NN_TIED_MONEY_V1';
+function G(id){return document.getElementById(id)}
+function tiedData(){try{var d=JSON.parse(localStorage.getItem(TK)||'null');if(d&&Array.isArray(d.items))return d}catch(e){}return {items:[],includeInTotal:false}}
+function tiedSave(d){localStorage.setItem(TK,JSON.stringify(d))}
+function cost(it){return (Number(it.amount)||0)+(it.expenses||[]).reduce(function(s,x){return s+(Number(x.amount)||0)},0)}
+function expTotal(it){return (it.expenses||[]).reduce(function(s,x){return s+(Number(x.amount)||0)},0)}
+function openTotal(d){return d.items.filter(function(i){return i.status!=='sold'}).reduce(function(s,i){return s+cost(i)},0)}
+function today(){return new Date().toISOString().slice(0,10)}
+function refreshAll(){renderTied();try{if(typeof renderLedger==='function')renderLedger()}catch(e){}}
+
+function renderTied(){
+  var box=G('tiedPanel');if(!box||box.classList.contains('hide'))return;
+  var d=tiedData();
+  var open=d.items.filter(function(i){return i.status!=='sold'});
+  var sold=d.items.filter(function(i){return i.status==='sold'});
+  var h='<h3 style="margin:0 0 6px;color:#7a4f10">📌 زما او نوراحمد پیسې بندي</h3>'+
+    '<div class="muted">یوازې ډالر (USD). هغه شیان یا حسابونه ولیکئ چې زموږ پیسې پکې بندې دي.</div>'+
+    '<div class="grid" style="margin-top:10px"><div><label>د شي / حساب نوم</label><input id="tiedName" placeholder="لکه: ځمکه، موټر، سودا..."></div>'+
+    '<div><label>بندي پیسې (USD)</label><input id="tiedAmount" type="number" min="0" step="any" placeholder="0"></div></div>'+
+    '<div class="actions"><button type="button" onclick="tiedAdd()">+ حساب زیاتول</button></div>';
+  h+='<div class="ledger-summary-heading" style="margin-top:12px;font-weight:800">بندي حسابونه ('+open.length+')</div>';
+  if(!open.length)h+='<div class="muted">تر اوسه بندي حساب نشته.</div>';
+  open.forEach(function(it){
+    var ex=(it.expenses||[]).map(function(x){return '<div class="muted" style="font-size:13px">• '+esc(x.date||'')+' — '+fmtN(x.amount)+' USD'+(x.note?' — '+esc(x.note):'')+'</div>'}).join('');
+    h+='<div class="saved" style="flex-wrap:wrap"><div class="saved-main"><b>'+esc(it.name)+'</b>'+
+      '<div>بندې پیسې: <b>'+fmtN(cost(it))+' USD</b></div>'+
+      '<div class="muted" style="font-size:13px">لومړنی: '+fmtN(it.amount)+' + مصرف: '+fmtN(expTotal(it))+'</div>'+ex+'</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px">'+
+      '<button type="button" onclick="tiedExpense(\''+it.id+'\')">مصرف زیاتول</button>'+
+      '<button type="button" class="gold" onclick="tiedSell(\''+it.id+'\')">شی خرڅول</button>'+
+      '<button type="button" class="secondary" onclick="tiedDelete(\''+it.id+'\')">حذف کول</button></div></div>';
+  });
+  h+='<div class="sum" style="margin-top:8px"><strong>ټولې بندي پیسې</strong><strong>'+fmtN(openTotal(d))+' USD</strong></div>'+
+    '<label class="book-check" style="font-size:16px"><input type="checkbox" '+(d.includeInTotal?'checked':'')+' onchange="tiedInclude(this.checked)"> دا بندي پیسې د ټولیز حساب سره جمع کړم</label>';
+  if(sold.length){
+    h+='<div class="ledger-summary-heading" style="margin-top:14px;font-weight:800">خرڅ شوي ('+sold.length+')</div>';
+    sold.forEach(function(it){
+      var profit=(Number(it.soldAmount)||0)-cost(it);
+      h+='<div class="saved" style="flex-wrap:wrap"><div class="saved-main"><b>'+esc(it.name)+'</b>'+
+        '<div>بندې پیسې وې: '+fmtN(cost(it))+' USD | خرڅ شو په: <b>'+fmtN(it.soldAmount)+' USD</b> | '+esc(it.soldDate||'')+'</div>'+
+        '<div style="font-weight:800;color:'+(profit>=0?'#16803c':'#b3261e')+'">'+(profit>=0?'ګټه: ':'تاوان: ')+fmtN(Math.abs(profit))+' USD</div></div>'+
+        '<button type="button" class="secondary" onclick="tiedDelete(\''+it.id+'\')">حذف کول</button></div>';
+    });
+  }
+  box.innerHTML=h;
+}
+function fmtN(n){return (typeof fmt==='function')?fmt(n):String(Number(n)||0)}
+
+window.toggleTied=function(){
+  var box=G('tiedPanel'),btn=G('tiedToggle');if(!box)return;
+  var opening=box.classList.contains('hide');
+  box.classList.toggle('hide',!opening);
+  if(btn)btn.textContent=opening?'📌 بندي پیسې پټې کړئ ▲':'📌 زما او نوراحمد پیسې بندي (ډالر)';
+  if(opening){renderTied();box.scrollIntoView({behavior:'smooth',block:'start'})}
+};
+window.tiedAdd=function(){
+  var name=(G('tiedName').value||'').trim(),amount=Number(G('tiedAmount').value);
+  if(!name){alert('د شي یا حساب نوم ولیکئ.');return}
+  if(!(amount>0)){alert('بندي پیسې په ډالرو سم ولیکئ.');return}
+  var d=tiedData();
+  d.items.push({id:'tm'+Date.now()+Math.random().toString(36).slice(2,5),name:name,amount:amount,expenses:[],status:'open',date:today(),created:new Date().toISOString()});
+  tiedSave(d);refreshAll();
+};
+window.tiedExpense=function(id){
+  var d=tiedData(),it=d.items.find(function(x){return x.id===id});if(!it)return;
+  var raw=prompt('د «'+it.name+'» مصرف څو ډالر دی؟ (USD)');if(raw===null)return;
+  var amount=Number(raw);if(!(amount>0)){alert('سم مبلغ ولیکئ.');return}
+  var note=prompt('د مصرف یادښت (اختیاري):','');if(note===null)note='';
+  it.expenses=it.expenses||[];
+  it.expenses.push({id:'ex'+Date.now(),amount:amount,note:String(note).trim(),date:today()});
+  tiedSave(d);refreshAll();
+};
+window.tiedSell=function(id){
+  var d=tiedData(),it=d.items.find(function(x){return x.id===id});if(!it)return;
+  var raw=prompt('د «'+it.name+'» په څو ډالرو خرڅ شو؟ (USD)\nبندي پیسې: '+fmtN(cost(it))+' USD');if(raw===null)return;
+  var amount=Number(raw);if(!(amount>=0)||raw.trim()===''){alert('سم مبلغ ولیکئ.');return}
+  if(!confirm('ایا «'+it.name+'» په '+fmtN(amount)+' USD خرڅ شو؟ دا حساب به له بندو پیسو څخه وځي.'))return;
+  it.status='sold';it.soldAmount=amount;it.soldDate=today();
+  tiedSave(d);refreshAll();
+};
+window.tiedDelete=function(id){
+  var d=tiedData(),it=d.items.find(function(x){return x.id===id});if(!it)return;
+  if(!confirm('ایا د «'+it.name+'» حساب حذف کړئ؟ دا کار بېرته نه راګرځي.'))return;
+  d.items=d.items.filter(function(x){return x.id!==id});
+  tiedSave(d);refreshAll();
+};
+window.tiedInclude=function(v){var d=tiedData();d.includeInTotal=!!v;tiedSave(d);refreshAll()};
+window.tiedData=tiedData;
+window.tiedSave=tiedSave;
+window.tiedSummaryHtml=function(net){
+  var d=tiedData(),t=openTotal(d);
+  var h='<div class="ledger-summary-heading">۵ ـ زما او نوراحمد بندي پیسې (USD)</div>'+
+    '<div class="sum"><strong>ټولې بندي پیسې په ډالرو</strong><strong>'+fmtN(t)+' ډالر</strong></div>';
+  if(d.includeInTotal)h+='<div class="sum"><strong>ټولیز حساب د بندو پیسو سره، په ډالرو</strong><strong>'+fmtN(net+t)+' ډالر</strong></div>';
+  else h+='<div class="receipt-note">د «بندي پیسې» چیک مارک نه دی فعال؛ دا مبلغ په ټولیز حساب کې نه دی جمع شوی.</div>';
+  return h;
+};
+
+/* ---------- ټوله د حساب کتابچه PDF ---------- */
+function kindLabel(p,t){
+  if(t.kind==='debt')return p.type==='supplier'?'زموږ قرض':'قرض';
+  return p.type==='supplier'?'ادا شوې':'وصول شوې';
+}
+function ledgerPdfBlocks(){
+  var d=ledgerData(),rates=getExchangeRates(),tied=tiedData();
+  var TH='background:#eef1f4;border:1px solid #cfd6de;padding:6px;font-size:13px;text-align:right';
+  var TD='border:1px solid #d7dce2;padding:6px;font-size:13px;text-align:right;vertical-align:top';
+  var CUR=['AFN','PKR','USD'];
+  var parties=d.parties.filter(function(p){return !p.settled&&partyBalance(p,d)>0});
+  var tot={};CUR.forEach(function(c){tot[c]={in:0,out:0,company:0}});
+  parties.forEach(function(p){var b=partyBalance(p,d);if(!tot[p.currency])return;var s=p.type==='customer'?'in':p.type==='company'?'company':p.type==='supplier'?'out':null;if(s)tot[p.currency][s]+=b});
+  function toUSD(s){return tot.USD[s]+tot.AFN[s]/rates.AFN+tot.PKR[s]/rates.PKR}
+  var recv=toUSD('in')+toUSD('company'),owe=toUSD('out'),net=recv-owe,tiedTotal=openTotal(tied);
+  var blocks=[];
+  var solarTxt='';try{solarTxt=solar(new Date())}catch(e){}
+  blocks.push('<div style="text-align:center;border-bottom:3px double #b68a36;padding-bottom:12px;margin-bottom:6px"><div style="font-size:26px;font-weight:800;color:#0b2a5b">نوراحمد او نسیم احمد</div><div style="font-size:19px;color:#8a6728;font-weight:700;margin-top:4px">د حساب کتابچه</div><div style="font-size:13px;color:#555;margin-top:6px">میلادي نېټه: '+today()+(solarTxt?' &nbsp;|&nbsp; شمسي نېټه: '+esc(solarTxt):'')+'</div></div><div style="padding-bottom:12px"></div>');
+  var rows=CUR.map(function(c){return '<tr><td style="'+TD+'">'+currLabel(c)+' ('+c+')</td><td style="'+TD+'">'+fmtN(tot[c].in)+'</td><td style="'+TD+'">'+fmtN(tot[c].company)+'</td><td style="'+TD+'">'+fmtN(tot[c].out)+'</td></tr>'}).join('');
+  blocks.push('<div style="padding-bottom:14px"><div style="font-weight:800;font-size:16px;margin-bottom:6px">د ټولو حسابونو لنډیز</div><table style="width:100%;border-collapse:collapse;table-layout:auto"><tr><th style="'+TH+'">کرنسي</th><th style="'+TH+'">خلګ زموږ قرضداره دي</th><th style="'+TH+'">کمپنۍ</th><th style="'+TH+'">موږ د خلګو قرضداره یو</th></tr>'+rows+'</table>'+
+    '<div style="margin-top:8px;font-size:14px;line-height:1.9">ټول ترلاسه کېدونکی (خلک + کمپنۍ) په ډالرو: <b>'+fmtN(recv)+'</b><br>زموږ د ادا کولو ټول قرض په ډالرو: <b>'+fmtN(owe)+'</b><br>خالص پاتې حساب په ډالرو: <b>'+fmtN(net)+'</b><br><span style="color:#555;font-size:12px">د تبادلې نرخ: ۱ ډالر = '+rates.AFN+' افغانۍ = '+rates.PKR+' کالدارې</span>'+
+    '<br>زما او نوراحمد بندي پیسې: <b>'+fmtN(tiedTotal)+' ډالر</b>'+(tied.includeInTotal?'<br>ټولیز حساب د بندو پیسو سره: <b>'+fmtN(net+tiedTotal)+' ډالر</b>':'')+'</div></div>');
+  var sections=[['customer','خلګ زموږ قرضداره دي'],['company','کمپنۍ — زموږ ترلاسه کېدونکی قرض'],['supplier','موږ د خلګو قرضداره یو']];
+  var any=false;
+  sections.forEach(function(sec){
+    CUR.forEach(function(c){
+      var list=parties.filter(function(p){return p.type===sec[0]&&p.currency===c});
+      if(!list.length)return;
+      any=true;
+      var heading='<div style="font-weight:800;font-size:17px;color:#fff;background:#0b2a5b;padding:8px 12px;border-radius:8px;margin-bottom:8px">'+sec[1]+' — '+currLabel(c)+' ('+c+') — '+list.length+' حسابونه</div>';
+      list.forEach(function(p,pi){
+        var b=partyBalance(p,d),run=Number(p.opening)||0,trs=[];
+        if(run>0)trs.push({date:'',label:'پخوانی پاتې قرض',amount:run,after:run,note:''});
+        d.transactions.filter(function(t){return t.partyId===p.id}).forEach(function(t){
+          run+=t.kind==='debt'?Number(t.amount):-Number(t.amount);
+          trs.push({date:t.date||'',label:kindLabel(p,t),amount:Number(t.amount)||0,after:run,note:t.note||''});
+        });
+        var CH=15,chunks=[];
+        for(var i=0;i<trs.length;i+=CH)chunks.push(trs.slice(i,i+CH));
+        if(!chunks.length)chunks.push([]);
+        chunks.forEach(function(ch,ci){
+          var body=ch.map(function(r){return '<tr><td style="'+TD+'">'+esc(r.date)+'</td><td style="'+TD+'">'+esc(r.label)+'</td><td style="'+TD+'">'+fmtN(r.amount)+'</td><td style="'+TD+'">'+fmtN(r.after)+'</td><td style="'+TD+'">'+esc(r.note)+'</td></tr>'}).join('');
+          var head='<div style="display:flex;justify-content:space-between;align-items:center;background:#eef1f4;border:1px solid #cfd6de;border-radius:6px;padding:8px 10px;margin-bottom:4px"><b style="font-size:16px">'+esc(p.name)+(ci>0?' <span style="font-weight:400;font-size:12px">(ادامه)</span>':'')+'</b><b>پاتې: '+fmtN(b)+' '+esc(p.currency)+'</b></div>';
+          var tbl=ch.length?'<table style="width:100%;border-collapse:collapse;table-layout:auto"><tr><th style="'+TH+'">نېټه</th><th style="'+TH+'">ډول</th><th style="'+TH+'">مبلغ</th><th style="'+TH+'">پاتې حساب</th><th style="'+TH+'">یادښت</th></tr>'+body+'</table>':'';
+          blocks.push('<div style="padding-bottom:14px">'+((pi===0&&ci===0)?heading:'')+head+tbl+'</div>');
+        });
+      });
+    });
+  });
+  if(!any)blocks.push('<div style="padding-bottom:14px;color:#555">په کتابچه کې فعال حسابونه نشته.</div>');
+  if(tied.items.length){
+    var trows=tied.items.map(function(it){
+      var sold=it.status==='sold',profit=(Number(it.soldAmount)||0)-cost(it);
+      return '<tr><td style="'+TD+'">'+esc(it.name)+'</td><td style="'+TD+'">'+fmtN(it.amount)+'</td><td style="'+TD+'">'+fmtN(expTotal(it))+'</td><td style="'+TD+'">'+fmtN(cost(it))+'</td><td style="'+TD+'">'+(sold?('خرڅ شو: '+fmtN(it.soldAmount)+' — '+(profit>=0?'ګټه ':'تاوان ')+fmtN(Math.abs(profit))):'بند دی')+'</td></tr>';
+    }).join('');
+    blocks.push('<div style="padding-bottom:14px"><div style="font-weight:800;font-size:17px;color:#fff;background:#7a4f10;padding:8px 12px;border-radius:8px;margin-bottom:8px">زما او نوراحمد پیسې بندي (USD)</div><table style="width:100%;border-collapse:collapse;table-layout:auto"><tr><th style="'+TH+'">نوم</th><th style="'+TH+'">لومړنی</th><th style="'+TH+'">مصرف</th><th style="'+TH+'">ټول</th><th style="'+TH+'">حالت</th></tr>'+trows+'</table><div style="margin-top:8px;font-weight:800">ټولې بندي پیسې: '+fmtN(tiedTotal)+' ډالر</div></div>');
+  }
+  return blocks;
+}
+function jpegsToPdf(imgs){
+  var enc=new TextEncoder(),chunks=[],len=0,offs=[];
+  function push(u){chunks.push(u);len+=u.length}
+  function str(s){push(enc.encode(s))}
+  function obj(id,fn){offs[id]=len;str(id+' 0 obj\n');fn();str('endobj\n')}
+  var n=imgs.length;
+  str('%PDF-1.4\n');
+  obj(1,function(){str('<< /Type /Catalog /Pages 2 0 R >>\n')});
+  obj(2,function(){str('<< /Type /Pages /Kids ['+imgs.map(function(_,i){return (5+3*i)+' 0 R'}).join(' ')+'] /Count '+n+' >>\n')});
+  imgs.forEach(function(im,i){
+    obj(3+3*i,function(){str('<< /Type /XObject /Subtype /Image /Width '+im.w+' /Height '+im.h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+im.data.length+' >>\nstream\n');push(im.data);str('\nendstream\n')});
+    var c='q 595 0 0 842 0 0 cm /Im'+i+' Do Q';
+    obj(4+3*i,function(){str('<< /Length '+c.length+' >>\nstream\n'+c+'\nendstream\n')});
+    obj(5+3*i,function(){str('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im'+i+' '+(3+3*i)+' 0 R >> >> /Contents '+(4+3*i)+' 0 R >>\n')});
+  });
+  var total=3*n+3,xref=len;
+  str('xref\n0 '+total+'\n0000000000 65535 f \n');
+  for(var id=1;id<total;id++)str(String(offs[id]).padStart(10,'0')+' 00000 n \n');
+  str('trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF');
+  return new Blob(chunks,{type:'application/pdf'});
+}
+function showPdfDone(blob,name){
+  var old=G('ledgerPdfDone');if(old)old.remove();
+  var ov=document.createElement('div');ov.id='ledgerPdfDone';
+  ov.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(10,30,50,.65);display:flex;align-items:center;justify-content:center;padding:16px;font-family:Tahoma,Arial,sans-serif';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:18px;width:min(420px,100%);text-align:center;direction:rtl"><div style="font-size:18px;font-weight:800;margin-bottom:6px">✅ د حساب کتابچې PDF جوړ شو</div><div class="muted" style="margin-bottom:12px">ټول حسابونه، لنډیز او بندي پیسې په یوه PDF کې دي.</div><div style="display:flex;flex-direction:column;gap:8px"><button type="button" id="lpShare" style="background:#16803c">📤 استول (واټساپ او نور)</button><button type="button" id="lpSave" class="secondary" style="background:#586675">⬇ په موبایل کې خوندي کول</button><button type="button" id="lpClose" style="background:#b3261e">بندول</button></div></div>';
+  document.body.appendChild(ov);
+  var file=new File([blob],name,{type:'application/pdf'});
+  G('lpClose').onclick=function(){ov.remove()};
+  G('lpSave').onclick=function(){var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000)};
+  G('lpShare').onclick=async function(){
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:'د حساب کتابچه'});return}catch(e){if(e&&e.name==='AbortError')return}
+    }
+    alert('ستاسو براوزر مستقیم استول نه ملاتړ کوي؛ PDF به خوندي کړو، بیا یې له فایلونو څخه واستوئ.');
+    G('lpSave').click();
+  };
+}
+window.shareFullLedgerPDF=async function(){
+  if(typeof html2canvas==='undefined'){alert('د PDF جوړولو لپاره انټرنېټ فعال کړئ او بیا هڅه وکړئ.');return}
+  var btn=G('ledgerPdfBtn'),oldTxt=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='⏳ PDF جوړیږي...'}
+  var holder=null;
+  try{
+    var blocks=ledgerPdfBlocks();
+    var W=794,H=1123,PAD=40,FOOT=34,AVAIL=H-PAD*2-FOOT,INNER=W-PAD*2;
+    holder=document.createElement('div');
+    holder.style.cssText='position:fixed;left:-10000px;top:0;width:'+W+'px;background:#fff;direction:rtl;font-family:Tahoma,Arial,sans-serif;color:#17202a;line-height:1.5';
+    document.body.appendChild(holder);
+    var meas=document.createElement('div');meas.style.cssText='width:'+INNER+'px;direction:rtl';holder.appendChild(meas);
+    var heights=blocks.map(function(h){meas.innerHTML=h;return meas.offsetHeight});
+    var pages=[],cur=[],used=0;
+    blocks.forEach(function(h,i){var hh=heights[i];if(used+hh>AVAIL&&cur.length){pages.push(cur);cur=[];used=0}cur.push(h);used+=hh});
+    if(cur.length)pages.push(cur);
+    var imgs=[];
+    for(var i=0;i<pages.length;i++){
+      holder.innerHTML='';
+      var pg=document.createElement('div');
+      pg.style.cssText='position:relative;width:'+W+'px;height:'+H+'px;padding:'+PAD+'px;box-sizing:border-box;background:#fff;overflow:hidden;direction:rtl';
+      pg.innerHTML=pages[i].join('')+'<div style="position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:12px;color:#777">نوراحمد او نسیم احمد — د حساب کتابچه — '+(i+1)+' / '+pages.length+'</div>';
+      holder.appendChild(pg);
+      var canvas=await html2canvas(pg,{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:true,width:W,height:H});
+      var b64=canvas.toDataURL('image/jpeg',0.92).split(',')[1],bin=atob(b64),u8=new Uint8Array(bin.length);
+      for(var k=0;k<bin.length;k++)u8[k]=bin.charCodeAt(k);
+      imgs.push({data:u8,w:canvas.width,h:canvas.height});
+    }
+    var blob=jpegsToPdf(imgs);
+    showPdfDone(blob,'Hesab-Ketabcha-'+today()+'.pdf');
+  }catch(e){console.error(e);alert('PDF جوړ نه شو. مهرباني وکړئ بیا هڅه وکړئ.')}
+  finally{if(holder)holder.remove();if(btn){btn.disabled=false;btn.textContent=oldTxt}}
+};
 })();
 </script>
 
