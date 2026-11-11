@@ -2736,6 +2736,7 @@ window.shareFullLedgerPDF=async function(){
 var VIEW=false;try{VIEW=localStorage.getItem('NN_VIEW_ONLY')==='1'}catch(e){}
 if(!VIEW)return;
 document.body.classList.add('nn-view');
+window.stockSave=function(){return true};
 var st=document.createElement('style');
 st.textContent='.nn-view #invoiceTab,.nn-view #backupPanel,.nn-view #editor{display:none!important}.nn-view{padding-top:44px}#nnViewBar{position:fixed;top:0;left:0;right:0;z-index:9990;background:#0b2a5b;color:#fff;text-align:center;padding:9px 10px;font-size:14px;font-weight:700;direction:rtl}#nnViewToast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;z-index:9999999;font-size:15px;direction:rtl;display:none}';
 document.head.appendChild(st);
@@ -2747,7 +2748,9 @@ var IDS=['partySearch','stockSearchInput','nnEmail','nnPass','nnLogin','nnChip',
 function okEl(el){
   if(el.closest('#nnAuth,#nnSync,#ledgerPdfDone,#nnViewBar,#nnLock'))return true;
   if(el.id&&IDS.indexOf(el.id)>=0)return true;
+  if(el.classList&&el.classList.contains('stock-close-btn'))return true;
   var oc=el.getAttribute&&el.getAttribute('onclick')||'';
+  if(!oc&&el.tagName==='BUTTON'&&(el.id==='sideCompany'||(el.dataset&&el.dataset.notesTab)||/PDF|تاریخي فهرست/.test(el.textContent||'')))return true;
   if(oc){var m=oc.match(/([A-Za-z_]\w*)\(/);if(m&&WL.indexOf(m[1])>=0)return true;return false}
   if(el.tagName==='LABEL'){var f=el.htmlFor&&document.getElementById(el.htmlFor);return !!(f&&IDS.indexOf(f.id)>=0)}
   return false;
