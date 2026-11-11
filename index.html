@@ -2325,6 +2325,8 @@ var LS=window.localStorage,origSet=Storage.prototype.setItem,origGet=Storage.pro
 function $(id){return document.getElementById(id)}
 function lget(k){try{return origGet.call(LS,k)}catch(e){return null}}
 function lset(k,v){try{origSet.call(LS,k,v)}catch(e){}}
+var VIEW=false;try{var vq=new URLSearchParams(location.search).get('view');if(vq==='1')lset('NN_VIEW_ONLY','1');else if(vq==='0'){try{origRem.call(LS,'NN_VIEW_ONLY')}catch(e){}}VIEW=lget('NN_VIEW_ONLY')==='1'}catch(e){}
+window.NN_VIEW_ONLY=VIEW;
 var dev=lget(DEV_K);if(!dev){dev='d'+Math.random().toString(36).slice(2,10);lset(DEV_K,dev)}
 function getDirty(){try{return JSON.parse(lget(DIRTY_K)||'[]')}catch(e){return[]}}
 function setDirty(a){lset(DIRTY_K,JSON.stringify(a))}
@@ -2333,27 +2335,30 @@ function same(k,a,b){
   if(k==='NoorNasimStockV1'){try{var x=JSON.parse(a),y=JSON.parse(b);delete x._stockSavedAt;delete y._stockSavedAt;return JSON.stringify(x)===JSON.stringify(y)}catch(e){}}
   return false;
 }
-function markDirty(k){var a=getDirty();if(a.indexOf(k)<0){a.push(k);setDirty(a)}}
+function markDirty(k){if(VIEW)return;var a=getDirty();if(a.indexOf(k)<0){a.push(k);setDirty(a)}}
 function clearDirty(k){setDirty(getDirty().filter(function(x){return x!==k}))}
 var track=false,ready=false,applying=false,timer=null,db=null,auth=null,user=null,kv=null,busy=false,lastErr='';
 
 /* ---- ټول localStorage لیکل (د اړینو کلیدونو) تعقیبول ---- */
 Storage.prototype.setItem=function(k,v){
+  if(VIEW&&this===LS&&!applying&&KEYS.indexOf(k)>=0)return;
   var before=(this===LS&&KEYS.indexOf(k)>=0)?lget(k):null;
   origSet.apply(this,arguments);
   if(this===LS&&track&&!applying&&KEYS.indexOf(k)>=0&&before!==String(v)){markDirty(k);schedule();paint()}
 };
 
+Storage.prototype.removeItem=function(k){if(VIEW&&this===LS&&KEYS.indexOf(k)>=0)return;return origRem.apply(this,arguments)};
+
 /* ---- UI ---- */
 function overlay(show,loading){$('nnAuth').style.display=show?'flex':'none';$('nnLoad').style.display=loading?'block':'none';var bx=document.querySelector('#nnAuth .box');if(bx)bx.style.display=loading?'none':'block'}
-function firstDone(){if(!track){track=true}overlay(false)}
+function firstDone(){if(!track&&!VIEW){track=true}overlay(false)}
 function paint(){
   var c=$('nnChip');if(!c)return;var d=getDirty().length;
   var t;
   if(lastErr==='denied')t='⚠ اجازه نشته';
   else if(!navigator.onLine)t='⚠ انټرنیټ نشته'+(d?' ('+d+')':'');
   else if(!ready||busy||d)t='⏳ همغږي کېږي…';
-  else t='☁ همغږی شو';
+  else t=VIEW?'👁 ژوندی همغږی':'☁ همغږی شو';
   c.textContent=t;
 }
 function msg(e){
@@ -2380,7 +2385,7 @@ function pushKey(k){
 }
 function schedule(){if(timer)clearTimeout(timer);timer=setTimeout(flush,1500)}
 function flush(){
-  timer=null;if(!ready||!db||!user||busy)return;
+  timer=null;if(VIEW||!ready||!db||!user||busy)return;
   var keys=getDirty().filter(function(k){return KEYS.indexOf(k)>=0});
   if(!keys.length){paint();return}
   busy=true;paint();
@@ -2389,9 +2394,36 @@ function flush(){
   p.then(function(){lastErr=''}).catch(function(e){lastErr=(e&&e.code==='permission-denied')?'denied':'err'}).then(function(){busy=false;paint();if(getDirty().length&&lastErr!=='denied')setTimeout(schedule,8000)});
 }
 
+/* ---- یوازې د کتلو حالت: ژوندی تازه کېدل ---- */
+var liveUnsub=null;
+function softRefresh(){try{
+  if($('ledgerPanel')&&!$('ledgerPanel').classList.contains('hide')&&window.renderLedger)window.renderLedger();
+  if($('savedPanel')&&!$('savedPanel').classList.contains('hide')&&window.showSaved)window.showSaved();
+  if($('inventoryPanel')&&!$('inventoryPanel').classList.contains('hide')&&window.renderStock)window.renderStock();
+  if(window.renderTied)window.renderTied();
+}catch(e){console.error(e)}}
+function startLive(){
+  if(!db||!user)return;
+  if(liveUnsub){try{liveUnsub()}catch(e){}liveUnsub=null}
+  busy=true;paint();
+  liveUnsub=kv.onSnapshot(function(snap){
+    var docs={};snap.forEach(function(d){docs[d.id]=d.data()});
+    var changed=false;
+    KEYS.forEach(function(k){
+      var m=docs[k];if(!m)return;
+      var val='',ok=true;for(var i=0;i<m.n;i++){var c=docs[k+'.c'+i];if(!c){ok=false;break}val+=c.d}
+      if(!ok)return;
+      if(!same(k,val,lget(k))){applying=true;lset(k,val);applying=false;changed=true}
+    });
+    lastErr='';ready=true;busy=false;firstDone();paint();
+    if(changed)softRefresh();
+  },function(e){busy=false;firstDone();lastErr=(e&&e.code==='permission-denied')?'denied':'';paint()});
+}
+
 /* ---- لومړنی ایستل او پرتله ---- */
 function startSync(){
   if(!db||!user)return;
+  if(VIEW){startLive();return}
   busy=true;paint();
   kv.get().then(function(snap){
     var docs={};snap.forEach(function(d){docs[d.id]=d.data()});
@@ -2428,7 +2460,7 @@ function boot(){
   });
 }
 function offlineFallback(){
-  if(lget(ONCE_K)){track=true;overlay(false);$('nnSync').style.display='block';$('nnWho').textContent='';paint();return}
+  if(lget(ONCE_K)){track=!VIEW;overlay(false);$('nnSync').style.display='block';$('nnWho').textContent='';paint();return}
   overlay(true);$('nnErr').textContent='لومړی ځل ننوتلو لپاره انټرنیټ پکار دی.';
 }
 $('nnLogin').onclick=function(){
@@ -2439,6 +2471,8 @@ $('nnLogin').onclick=function(){
   auth.signInWithEmailAndPassword(em,pw).then(function(){$('nnPass').value=''}).catch(function(e){$('nnErr').textContent=msg(e)}).then(function(){b.disabled=false});
 };
 $('nnPass').addEventListener('keydown',function(e){if(e.key==='Enter')$('nnLogin').onclick()});
+window.NN_SIGNOUT=function(){try{if(liveUnsub)liveUnsub()}catch(e){}try{auth&&auth.signOut()}catch(e){}};
+window.NN_WIPE=function(){KEYS.forEach(function(k){try{origRem.call(LS,k)}catch(e){}});try{origRem.call(LS,DIRTY_K)}catch(e){}};
 $('nnChip').onclick=function(){var m=$('nnMenu');m.style.display=m.style.display==='block'?'none':'block'};
 $('nnNow').onclick=function(){$('nnMenu').style.display='none';ready=false;startSync()};
 $('nnOut').onclick=function(){
@@ -2510,6 +2544,7 @@ function renderTied(){
   }
   box.innerHTML=h;
 }
+window.renderTied=renderTied;
 function fmtN(n){return (typeof fmt==='function')?fmt(n):String(Number(n)||0)}
 
 window.toggleTied=function(){
@@ -2692,6 +2727,117 @@ window.shareFullLedgerPDF=async function(){
   }catch(e){console.error(e);alert('PDF جوړ نه شو. مهرباني وکړئ بیا هڅه وکړئ.')}
   finally{if(holder)holder.remove();if(btn){btn.disabled=false;btn.textContent=oldTxt}}
 };
+})();
+</script>
+
+<script id="nn-view-only-guard">
+(function(){
+'use strict';
+var VIEW=false;try{VIEW=localStorage.getItem('NN_VIEW_ONLY')==='1'}catch(e){}
+if(!VIEW)return;
+document.body.classList.add('nn-view');
+var st=document.createElement('style');
+st.textContent='.nn-view #invoiceTab,.nn-view #backupPanel,.nn-view #editor{display:none!important}.nn-view{padding-top:44px}#nnViewBar{position:fixed;top:0;left:0;right:0;z-index:9990;background:#0b2a5b;color:#fff;text-align:center;padding:9px 10px;font-size:14px;font-weight:700;direction:rtl}#nnViewToast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;z-index:9999999;font-size:15px;direction:rtl;display:none}';
+document.head.appendChild(st);
+var bar=document.createElement('div');bar.id='nnViewBar';bar.textContent='👁 یوازې کتل — بدلون نه شي کېدای. معلومات په ژوندي ډول تازه کېږي.';document.body.appendChild(bar);
+var toastEl=document.createElement('div');toastEl.id='nnViewToast';toastEl.textContent='👁 دا اپ یوازې د کتلو لپاره دی';document.body.appendChild(toastEl);
+var tt=null;function toast(){toastEl.style.display='block';clearTimeout(tt);tt=setTimeout(function(){toastEl.style.display='none'},1800)}
+var WL=['showSaved','showLedger','showInventory','hideSaved','hideLedger','hideInventory','setLedgerSide','setLedgerCurrency','toggleLedgerSummary','toggleStockFinanceSummary','toggleTied','toggleShortageList','applyStockSearch','clearStockSearch','openSavedReadOnly','reprintTxn','partyLastReceipt','shareFullLedgerPDF','exportStockCategoryPDF','generateStockCategoryPDF','shareTxnReceiptImage','saveTxnReceiptImage','closeNoteImageViewer','showNoteImage','closeNotes','print','close','renderLedger'];
+var IDS=['partySearch','stockSearchInput','nnEmail','nnPass','nnLogin','nnChip','nnNow','nnOut','tiedToggle','ledgerPdfBtn'];
+function okEl(el){
+  if(el.closest('#nnAuth,#nnSync,#ledgerPdfDone,#nnViewBar,#nnLock'))return true;
+  if(el.id&&IDS.indexOf(el.id)>=0)return true;
+  var oc=el.getAttribute&&el.getAttribute('onclick')||'';
+  if(oc){var m=oc.match(/([A-Za-z_]\w*)\(/);if(m&&WL.indexOf(m[1])>=0)return true;return false}
+  if(el.tagName==='LABEL'){var f=el.htmlFor&&document.getElementById(el.htmlFor);return !!(f&&IDS.indexOf(f.id)>=0)}
+  return false;
+}
+function block(e){e.preventDefault();e.stopImmediatePropagation();toast()}
+document.addEventListener('click',function(e){
+  var el=e.target.closest&&e.target.closest('button,[onclick],input,select,textarea,label');
+  if(!el)return;
+  if(okEl(el))return;
+  if(el.tagName==='LABEL'&&el.querySelector('input[type=checkbox],input[type=radio]')==null&&!el.getAttribute('onclick'))return;
+  block(e);
+},true);
+['change','input','keydown','paste','drop'].forEach(function(ev){
+  document.addEventListener(ev,function(e){
+    var t=e.target;if(!t||!t.tagName)return;
+    if(!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
+    if(okEl(t))return;
+    block(e);
+  },true);
+});
+function lock(){
+  document.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(okEl(el))return;
+    if(el.type==='checkbox'||el.type==='radio'||el.tagName==='SELECT'||el.type==='button'||el.type==='file')el.disabled=true;else el.readOnly=true;
+  });
+}
+var pend=false;
+new MutationObserver(function(){if(pend)return;pend=true;requestAnimationFrame(function(){pend=false;lock()})}).observe(document.body,{childList:true,subtree:true});
+lock();
+setTimeout(function(){try{if(typeof showLedger==='function')showLedger()}catch(e){}lock()},0);
+/* ---- د ورور د کوډ قفل ---- */
+var PK='NN_VIEW_PIN',FK='NN_VIEW_FAILS',MAXF=5;
+function hashPin(p){
+  var d=new TextEncoder().encode('nn-salt-v1:'+p);
+  if(window.crypto&&crypto.subtle)return crypto.subtle.digest('SHA-256',d).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0')}).join('')});
+  var h=5381;for(var i=0;i<d.length;i++)h=((h<<5)+h+d[i])>>>0;return Promise.resolve('x'+h);
+}
+function wipeAll(){
+  try{if(window.NN_WIPE)window.NN_WIPE()}catch(e){}
+  try{localStorage.removeItem(PK);localStorage.removeItem(FK)}catch(e){}
+  try{if(window.NN_SIGNOUT)window.NN_SIGNOUT()}catch(e){}
+  setTimeout(function(){location.reload()},700);
+}
+var lockEl=null;
+function showLock(){
+  if(lockEl)return;
+  var PRESET=(window.crypto&&crypto.subtle)?'f493b3398a46ebae0068c8b0652cd78c9a73cfccfb50228ec1d5efb548c576e9':'x798249572';if(!localStorage.getItem(PK))localStorage.setItem(PK,PRESET);var has=true;
+  lockEl=document.createElement('div');lockEl.id='nnLock';
+  lockEl.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b2a5b;display:flex;align-items:center;justify-content:center;padding:18px;direction:rtl;font-family:Tahoma,Arial,sans-serif';
+  var inp='width:100%;padding:12px;font-size:22px;text-align:center;letter-spacing:6px;border:1px solid #ccd3db;border-radius:10px;margin:6px 0';
+  lockEl.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;width:min(360px,100%);text-align:center">'+
+    '<div style="font-size:20px;font-weight:800;margin-bottom:4px">🔒 نوراحمد او نسیم احمد</div>'+
+    '<div style="color:#555;font-size:14px;margin-bottom:10px">'+(has?'خپل کوډ ولیکئ':'د دې ټيليفون لپاره نوی کوډ وټاکئ (۴ تر ۸ شمېرې)')+'</div>'+
+    '<input id="nnPin1" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="••••" style="'+inp+'">'+
+    (has?'':'<input id="nnPin2" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="بیا ولیکئ" style="'+inp+'">')+
+    '<div id="nnPinErr" style="color:#b3261e;min-height:22px;font-size:14px"></div>'+
+    '<button id="nnPinGo" type="button" style="width:100%;padding:13px;font-size:17px;border:0;border-radius:10px;background:#16803c;color:#fff">'+(has?'خلاصول':'کوډ ټاکل')+'</button>'+
+    (has?'<div id="nnPinForgot" style="margin-top:12px;color:#205f96;font-size:14px;text-decoration:underline;cursor:pointer">کوډ مې هېر شو</div>':'')+
+    '</div>';
+  document.body.appendChild(lockEl);
+  var e1=document.getElementById('nnPin1'),e2=document.getElementById('nnPin2'),er=document.getElementById('nnPinErr');
+  setTimeout(function(){e1.focus()},100);
+  function done(){lockEl.remove();lockEl=null}
+  function go(){
+    var p=e1.value.trim();
+    if(!/^\d{4,8}$/.test(p)){er.textContent='کوډ باید ۴ تر ۸ شمېرې وي.';return}
+    if(!has){
+      if(p!==e2.value.trim()){er.textContent='دواړه کوډونه یو شان نه دي.';return}
+      hashPin(p).then(function(h){localStorage.setItem(PK,h);localStorage.setItem(FK,'0');done()});
+      return;
+    }
+    hashPin(p).then(function(h){
+      if(h===localStorage.getItem(PK)){localStorage.setItem(FK,'0');done();return}
+      var f=(Number(localStorage.getItem(FK))||0)+1;localStorage.setItem(FK,String(f));
+      e1.value='';
+      if(f>=MAXF){er.textContent='ډېرې ناسمې هڅې. معلومات پاک شول.';wipeAll();return}
+      er.textContent='کوډ ناسم دی. پاتې هڅې: '+(MAXF-f);
+    });
+  }
+  document.getElementById('nnPinGo').onclick=go;
+  [e1,e2].forEach(function(x){if(x)x.addEventListener('keydown',function(ev){if(ev.key==='Enter')go()})});
+  var fg=document.getElementById('nnPinForgot');
+  if(fg)fg.onclick=function(){if(confirm('که کوډ هېر شوی وي، په دې ټيليفون کې معلومات پاک او له حساب څخه وځئ. بیا باید د ایمیل او پټنوم سره ننوځئ او نوی کوډ وټاکئ. دوام ورکړو؟'))wipeAll()};
+}
+showLock();
+var awayAt=0;
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden')awayAt=Date.now();
+  else if(awayAt&&Date.now()-awayAt>60000)showLock();
+});
 })();
 </script>
 
