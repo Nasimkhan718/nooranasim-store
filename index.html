@@ -545,8 +545,9 @@ body.receipt-mode .grid input,body.receipt-mode .grid select{border-radius:7px!i
 <h2>د حساب کتابچه</h2>
 <div class="actions"><button type="button" id="sideCustomer" onclick="setLedgerSide('customer')">خلګ زموږ قرضداره دي</button><button type="button" id="sideSupplier" class="secondary" onclick="setLedgerSide('supplier')">موږ د خلګو قرضداره یو</button></div>
 <div class="actions currency-categories"><button type="button" id="catAFN" onclick="setLedgerCurrency('AFN')">افغاني</button><button type="button" id="catPKR" class="secondary" onclick="setLedgerCurrency('PKR')">کالدارې</button><button type="button" id="catUSD" class="secondary" onclick="setLedgerCurrency('USD')">ډالر</button></div>
-<div class="actions no-print" style="margin:6px 0"><button type="button" id="tiedToggle" onclick="toggleTied()" style="flex:1;min-width:150px;background:#7a4f10">📌 زما او نوراحمد پیسې بندي (ډالر)</button><button type="button" class="gold" id="ledgerPdfBtn" onclick="shareFullLedgerPDF()" style="flex:1;min-width:150px">📄 ټوله د حساب کتابچه PDF — استول</button></div>
+<div class="actions no-print" style="margin:6px 0"><button type="button" id="tiedToggle" onclick="toggleTied()" style="flex:1;min-width:150px;background:#7a4f10">📌 زما او نوراحمد پیسې بندي (ډالر)</button><button type="button" id="wdToggle" onclick="toggleWd()" style="flex:1;min-width:150px;background:#0b6b52">💸 ورداشت، کال حساب، زکات</button><button type="button" class="gold" id="ledgerPdfBtn" onclick="shareFullLedgerPDF()" style="flex:1;min-width:150px">📄 ټوله د حساب کتابچه PDF — استول</button></div>
 <div id="tiedPanel" class="panel hide no-print" style="background:#fff8e8;border:2px solid #b68a36"></div>
+<div id="wdPanel" class="panel hide no-print" style="background:#effaf5;border:2px solid #0b6b52"></div>
 <div class="grid"><div><label>د سړي / شرکت نوم</label><input id="partyName" placeholder="نوم ولیکئ"></div><div><label>پخوانی پاتې قرض (که وي)</label><input id="partyOpening" type="number" min="0" step="any" value="0" placeholder="0"></div></div>
 <div class="actions"><button onclick="addParty()">+ حساب جوړول</button></div>
 <hr>
@@ -701,7 +702,7 @@ function newDoc(){ editingDocKey=null;$('customer').value='';$('received').value
 // د ټولو اپلیکیشن معلومات په یوه بیک‌اپ فایل کې خوندي کول؛ اصلي معلومات نه حذفوي.
 async function backupAllData(){
   try{
-    const payload={app:'NoorNasimAutoGlass',backupVersion:1,createdAt:new Date().toISOString(),docs:JSON.parse(localStorage.getItem('mirrorDocs')||'[]'),pendingLedgerReceipts:JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]'),ledger:ledgerData(),deletedPartyIds:getDeletedPartyIds(),inventory:stockData(),tiedMoney:(typeof tiedData==='function'?tiedData():null)};
+    const payload={app:'NoorNasimAutoGlass',backupVersion:1,createdAt:new Date().toISOString(),docs:JSON.parse(localStorage.getItem('mirrorDocs')||'[]'),pendingLedgerReceipts:JSON.parse(localStorage.getItem('NN_PENDING_LEDGER_RECEIPTS')||'[]'),ledger:ledgerData(),deletedPartyIds:getDeletedPartyIds(),inventory:stockData(),tiedMoney:(typeof tiedData==='function'?tiedData():null),withdrawals:JSON.parse(localStorage.getItem('NN_WITHDRAW_V1')||'null')};
     const textData=JSON.stringify(payload,null,2);
     const blob=new Blob([textData],{type:'application/json'});
     // که براوزر د فایل د خوندي کولو ملاتړ کوي، کاروونکی کولای شي هماغه پخوانی فایل انتخاب او بدل یې کړي.
@@ -732,7 +733,7 @@ function restoreAllData(){
       for(const t of incoming.ledger.transactions){if(!transactions.some(x=>x.id&&x.id===t.id))transactions.push(t)}
       // ډیلیټ شوي حسابونه او د هغو ټولې معاملې له بیک‌اپ څخه هم بېرته نه راګرځي.
       parties=parties.filter(p=>!deletedIds.has(p.id));transactions=transactions.filter(t=>!deletedIds.has(t.partyId));
-      localStorage.setItem('mirrorDocs',JSON.stringify(docs));localStorage.setItem(DELETED_PARTIES_KEY,JSON.stringify([...deletedIds]));ledgerSave({parties,transactions});if(incoming.inventory&&Array.isArray(incoming.inventory.categories)){const cur=stockData();const cats=[...cur.categories];for(const c of incoming.inventory.categories){const i=cats.findIndex(x=>x.id===c.id);if(i<0)cats.push(c);else cats[i]=c;}stockSave({categories:cats});}
+      localStorage.setItem('mirrorDocs',JSON.stringify(docs));localStorage.setItem(DELETED_PARTIES_KEY,JSON.stringify([...deletedIds]));ledgerSave({parties,transactions});try{if(incoming.withdrawals&&Array.isArray(incoming.withdrawals.entries)){let w;try{w=JSON.parse(localStorage.getItem('NN_WITHDRAW_V1')||'{"entries":[]}')}catch(e){w={entries:[]}}const ids=new Set((w.entries||[]).map(x=>x.id));incoming.withdrawals.entries.forEach(x=>{if(x&&!ids.has(x.id))w.entries.push(x)});localStorage.setItem('NN_WITHDRAW_V1',JSON.stringify(w))}}catch(e){}if(incoming.inventory&&Array.isArray(incoming.inventory.categories)){const cur=stockData();const cats=[...cur.categories];for(const c of incoming.inventory.categories){const i=cats.findIndex(x=>x.id===c.id);if(i<0)cats.push(c);else cats[i]=c;}stockSave({categories:cats});}
       try{if(incoming.tiedMoney&&Array.isArray(incoming.tiedMoney.items)){const ct=tiedData(),items=[...ct.items];for(const it of incoming.tiedMoney.items){const k=items.findIndex(x=>x.id===it.id);if(k<0)items.push(it)}tiedSave({items,includeInTotal:ct.includeInTotal||!!incoming.tiedMoney.includeInTotal})}}catch(e){}alert('بریالی شو! د بیلونو، رسیدونو او د حساب کتابچې معلومات بېرته داخل شول.');
       if(!$('ledgerPanel').classList.contains('hide'))renderLedger();if(!$('savedPanel').classList.contains('hide'))showSaved();
     }catch(e){alert('دا د نوراحمد او نسیم احمد د سیستم سم بیک‌اپ فایل نه دی، یا خراب شوی دی. اصلي حسابونه مو بدل نه شول.')}};
@@ -2320,7 +2321,7 @@ function clearStockSearch(){const input=document.getElementById('stockSearchInpu
 'use strict';
 var CFG={apiKey:"AIzaSyCyAcomAb4kgrbAjxBKvjUZKxQZGwSTM44",authDomain:"noor-nasim-store-13e59.firebaseapp.com",projectId:"noor-nasim-store-13e59",storageBucket:"noor-nasim-store-13e59.firebasestorage.app",messagingSenderId:"352426858518",appId:"1:352426858518:web:781a788618c4a1e3c13d37"};
 var SDK='https://www.gstatic.com/firebasejs/10.12.2/';
-var KEYS=['NoorNasimStockV1','mirrorDocs','mirrorLedgerV1','mirrorDeletedPartyIdsV1','NN_NOTES_CATEGORIES_V1','NN_PERSISTENT_NEXT_DOC_NUMBERS_V4','NN_EXCHANGE_RATES','NN_PENDING_LEDGER_RECEIPTS','NN_TIED_MONEY_V1','NN_MEDIA_INDEX_V1'];
+var KEYS=['NoorNasimStockV1','mirrorDocs','mirrorLedgerV1','mirrorDeletedPartyIdsV1','NN_NOTES_CATEGORIES_V1','NN_PERSISTENT_NEXT_DOC_NUMBERS_V4','NN_EXCHANGE_RATES','NN_PENDING_LEDGER_RECEIPTS','NN_TIED_MONEY_V1','NN_WITHDRAW_V1','NN_MEDIA_INDEX_V1'];
 var CHUNK=200000,DIRTY_K='NN_SYNC_DIRTY_V1',DEV_K='NN_SYNC_DEVICE_V1',ONCE_K='NN_SYNC_LOGGED_ONCE_V1';
 var LS=window.localStorage,origSet=Storage.prototype.setItem,origGet=Storage.prototype.getItem,origRem=Storage.prototype.removeItem;
 function $(id){return document.getElementById(id)}
@@ -2402,6 +2403,7 @@ function softRefresh(){try{
   if($('savedPanel')&&!$('savedPanel').classList.contains('hide')&&window.showSaved)window.showSaved();
   if($('inventoryPanel')&&!$('inventoryPanel').classList.contains('hide')&&window.renderStock)window.renderStock();
   if(window.renderTied)window.renderTied();
+  if(window.renderWd)window.renderWd();
 }catch(e){console.error(e)}}
 function kvq(){try{return kv.where(window.firebase.firestore.FieldPath.documentId(),'<','zmedia')}catch(e){return kv}}
 function startLive(){
@@ -2745,7 +2747,7 @@ document.head.appendChild(st);
 var bar=document.createElement('div');bar.id='nnViewBar';bar.textContent='👁 یوازې کتل — بدلون نه شي کېدای. معلومات په ژوندي ډول تازه کېږي.';document.body.appendChild(bar);
 var toastEl=document.createElement('div');toastEl.id='nnViewToast';toastEl.textContent='👁 دا اپ یوازې د کتلو لپاره دی';document.body.appendChild(toastEl);
 var tt=null;function toast(){toastEl.style.display='block';clearTimeout(tt);tt=setTimeout(function(){toastEl.style.display='none'},1800)}
-var WL=['showSaved','showLedger','showInventory','hideSaved','hideLedger','hideInventory','setLedgerSide','setLedgerCurrency','toggleLedgerSummary','toggleStockFinanceSummary','toggleTied','toggleShortageList','applyStockSearch','clearStockSearch','openSavedReadOnly','reprintTxn','partyLastReceipt','shareFullLedgerPDF','exportStockCategoryPDF','generateStockCategoryPDF','shareTxnReceiptImage','saveTxnReceiptImage','closeNoteImageViewer','showNoteImage','closeNotes','print','close','renderLedger'];
+var WL=['showSaved','showLedger','showInventory','hideSaved','hideLedger','hideInventory','setLedgerSide','setLedgerCurrency','toggleLedgerSummary','toggleStockFinanceSummary','toggleTied','toggleWd','toggleShortageList','applyStockSearch','clearStockSearch','openSavedReadOnly','reprintTxn','partyLastReceipt','shareFullLedgerPDF','exportStockCategoryPDF','generateStockCategoryPDF','shareTxnReceiptImage','saveTxnReceiptImage','closeNoteImageViewer','showNoteImage','closeNotes','print','close','renderLedger'];
 var IDS=['partySearch','stockSearchInput','nnEmail','nnPass','nnLogin','nnChip','nnNow','nnOut','tiedToggle','ledgerPdfBtn'];
 function okEl(el){
   if(el.closest('#nnAuth,#nnSync,#ledgerPdfDone,#nnViewBar,#nnLock,.nn-ok'))return true;
@@ -3161,7 +3163,79 @@ function refresh(){if(pend)return;pend=true;requestAnimationFrame(function(){pen
 function watch(id){var el=$(id);if(!el)return;new MutationObserver(function(){refresh()}).observe(el,{childList:true,subtree:true})}
 watch('partyList');watch('stockCategoryList');
 refresh();setTimeout(flushPending,4000);
-window.NN_MEDIA_REFRESH=refresh;
+window.NN_MEDIA_REFRESH=refresh;window.NN_MEDIA_API={open:openMedia,list:listFor};
+})();
+</script>
+
+<script id="nn-withdrawals">
+(function(){
+'use strict';
+var K='NN_WITHDRAW_V1',ACC={noor:'ورداشت نوراحمد',nasim:'ورداشت نسیم احمد'},acc='noor',selYear=null;
+function G(i){return document.getElementById(i)}
+function V(){try{return localStorage.getItem('NN_VIEW_ONLY')==='1'}catch(e){return false}}
+function load(){try{var d=JSON.parse(localStorage.getItem(K)||'null');if(d&&Array.isArray(d.entries))return d}catch(e){}return {entries:[]}}
+function save(d){localStorage.setItem(K,JSON.stringify(d))}
+function ny(){try{return Number(new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn',{year:'numeric'}).formatToParts(new Date()).filter(function(x){return x.type==='year'})[0].value)}catch(e){return 1405}}
+function f(n){return (typeof fmt==='function')?fmt(n):String(Number(n)||0)}
+function sum(a,k){return a.reduce(function(s,e){return s+(Number(e[k])||0)},0)}
+function years(d){var s={};s[ny()]=1;d.entries.forEach(function(e){s[e.year]=1});return Object.keys(s).map(Number).sort(function(a,b){return b-a})}
+function curYear(d){var y=selYear||ny();return years(d).indexOf(y)<0?ny():y}
+function list(d,y){return d.entries.filter(function(e){return e.acc===acc&&e.year===y}).sort(function(a,b){return String(b.created).localeCompare(String(a.created))})}
+function mapi(){return window.NN_MEDIA_API||null}
+function cnt(o,k){try{return mapi()?mapi().list('wd',o,k).length:0}catch(e){return 0}}
+function bd(n){return n?' ('+n+')':''}
+function render(){
+  var box=G('wdPanel');if(!box||box.classList.contains('hide'))return;
+  var d=load(),y=curYear(d),lock=y!==ny(),view=V(),es=list(d,y),oid=acc+'-'+y;
+  var h='<h3 style="margin:0 0 6px;color:#0b6b52">💸 ورداشت، کال حساب، زکات</h3><div class="muted">د دوکان څخه شخصي مصرف (ډالر). دا حسابونه په ټولیز حساب کې نه جمع کيږي.</div>';
+  h+='<div class="actions" style="margin-top:8px">'+Object.keys(ACC).map(function(a){return '<button type="button" class="nn-ok '+(a===acc?'':'secondary')+'" onclick="wdAcc(\''+a+'\')">'+ACC[a]+' — '+y+'</button>'}).join('')+'</div>';
+  h+='<div style="margin:6px 0"><label>کال:</label> <select class="nn-ok" onchange="wdYear(this.value)" style="width:auto">'+years(d).map(function(x){return '<option value="'+x+'"'+(x===y?' selected':'')+'>'+x+(x===ny()?' (روان)':' 🔒')+'</option>'}).join('')+'</select></div>';
+  if(lock)h+='<div class="receipt-note">🔒 د '+y+' کال ورداشت بند دی، یوازې کتل کېږي. نوی کال په اتومات ډول پیلېږي.</div>';
+  h+='<div class="ledger-summary-heading" style="font-weight:800;margin-top:8px">'+ACC[acc]+' — '+y+' ('+es.length+')</div>';
+  if(!es.length)h+='<div class="muted">په دې کال کې تر اوسه ورداشت نشته.</div>';
+  es.forEach(function(e){
+    h+='<div class="saved" style="flex-wrap:wrap"><div class="saved-main"><b>'+esc(e.solar||'')+'</b> <span class="muted" style="font-size:13px">'+esc(e.date||'')+'</span>'+
+      '<div>دلیل: <b>'+esc(e.purpose||'')+'</b></div>'+
+      '<div><b>'+f(e.usd)+' USD</b> = '+f(e.afn)+' افغانۍ <span class="muted" style="font-size:13px">(نرخ: 1$ = '+f(e.rate)+')</span></div></div>'+
+      (view||lock?'':'<button type="button" class="secondary" onclick="wdDel(\''+e.id+'\')">حذف کول</button>')+'</div>';
+  });
+  h+='<div class="sum" style="margin-top:8px"><strong>ټوله ورداشت '+y+'</strong><strong>'+f(sum(es,'usd'))+' USD<br><span style="font-size:14px">'+f(sum(es,'afn'))+' افغانۍ</span></strong></div>';
+  h+='<div class="actions" style="margin-top:8px"><button type="button" class="gold nn-ok" onclick="wdReport()">🧾 بیل ریپورټ</button>'+
+    '<button type="button" class="secondary nn-ok" onclick="wdMedia(\'photo\')">📷 عکسونه'+bd(cnt(oid,'photo'))+'</button>'+
+    '<button type="button" class="secondary nn-ok" onclick="wdMedia(\'audio\')">🎙 غږ'+bd(cnt(oid,'audio'))+'</button></div>';
+  if(!view&&!lock)h+='<div class="actions"><button type="button" onclick="wdAdd()" style="background:#0b6b52">+ ورداشت زیاتول</button></div>';
+  box.innerHTML=h;
+}
+window.renderWd=render;
+window.toggleWd=function(){var b=G('wdPanel'),t=G('wdToggle');if(!b)return;var o=b.classList.contains('hide');b.classList.toggle('hide',!o);if(t)t.textContent=o?'💸 ورداشت پټ کړئ ▲':'💸 ورداشت، کال حساب، زکات';if(o){render();b.scrollIntoView({behavior:'smooth',block:'start'})}};
+window.wdAcc=function(a){acc=a;render()};
+window.wdYear=function(v){selYear=Number(v);render()};
+window.wdAdd=function(){
+  var raw=prompt('د «'+ACC[acc]+'» مبلغ ولیکئ:');if(raw===null)return;var amt=Number(String(raw).replace(/,/g,''));if(!(amt>0)){alert('مبلغ سم ولیکئ.');return}
+  var c=prompt('دا مبلغ په کومو پیسو دی؟\n1 = افغاني\n2 = ډالر','1');if(c===null)return;c=String(c).trim();if(c!=='1'&&c!=='2'){alert('یوازې 1 یا 2 ولیکئ.');return}
+  var dr=70;try{dr=getExchangeRates().AFN||70}catch(e){}
+  var r=prompt('د ډالر نرخ ولیکئ (۱ ډالر = څو افغانۍ):',dr);if(r===null)return;r=Number(String(r).replace(/,/g,''));if(!(r>0)){alert('د ډالر نرخ سم ولیکئ.');return}
+  var p=prompt('ورداشت مو د څه لپاره واخیست؟');if(p===null)return;p=String(p).trim();if(!p){alert('د ورداشت دلیل لازمي دی.');return}
+  var afn=c==='1'?amt:amt*r,usd=c==='1'?amt/r:amt;usd=Math.round(usd*10000)/10000;afn=Math.round(afn*100)/100;
+  if(!confirm(ACC[acc]+'\n'+f(usd)+' USD = '+f(afn)+' افغانۍ\nنرخ: 1$ = '+f(r)+'\nدلیل: '+p+'\n\nخوندي کړم؟'))return;
+  var n=new Date(),iso=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'),d=load(),y=ny();
+  d.entries.push({id:'wd'+Date.now()+Math.random().toString(36).slice(2,5),acc:acc,year:y,usd:usd,afn:afn,rate:r,purpose:p,date:iso,solar:(typeof solar==='function'?solar(n):''),created:n.toISOString()});
+  save(d);selYear=null;render();
+};
+window.wdDel=function(id){var d=load(),e=d.entries.filter(function(x){return x.id===id})[0];if(!e||e.year!==ny())return;if(!confirm('دا ورداشت حذف کړم؟\n'+f(e.usd)+' USD — '+e.purpose))return;d.entries=d.entries.filter(function(x){return x.id!==id});save(d);render()};
+window.wdMedia=function(k){var a=mapi();if(!a){alert('عکس او غږ اوس نشته، پاڼه بیا خلاصه کړئ.');return}var y=curYear(load());a.open({t:'wd',id:acc+'-'+y,name:ACC[acc]+' '+y},k)};
+window.wdReport=function(){
+  var d=load(),y=curYear(d),es=list(d,y).slice().reverse(),old=G('wdReport');if(old)old.remove();
+  var rows=es.map(function(e,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(e.solar||'')+'<br><small>'+esc(e.date||'')+'</small></td><td>'+esc(e.purpose||'')+'</td><td>'+f(e.usd)+'</td><td>'+f(e.afn)+'</td><td>'+f(e.rate)+'</td></tr>'}).join('')||'<tr><td colspan="6">ورداشت نشته</td></tr>';
+  var o=document.createElement('div');o.id='wdReport';o.dir='rtl';
+  o.style.cssText='position:fixed;inset:0;z-index:9500;background:#fff;overflow:auto;padding:14px;font-family:inherit';
+  o.innerHTML='<style>#wdReport table{width:100%;border-collapse:collapse;margin:8px 0}#wdReport th,#wdReport td{border:1px solid #999;padding:5px;text-align:center;font-size:14px}#wdReport th{background:#e8f0fe}@media print{body>*:not(#wdReport){display:none!important}#wdReport{position:static!important}#wdReport .no-print{display:none!important}}</style>'+
+   '<h2 style="text-align:center">🧾 '+ACC[acc]+' — '+y+'</h2><div style="text-align:center">نوراحمد او نسیم احمد موټر شیشه فروشي</div>'+
+   '<table><thead><tr><th>#</th><th>نېټه</th><th>دلیل</th><th>ډالر (USD)</th><th>افغانۍ</th><th>د ډالر نرخ</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><th colspan="3">ټول</th><th>'+f(sum(es,'usd'))+'</th><th>'+f(sum(es,'afn'))+'</th><th></th></tr></tfoot></table>'+
+   '<div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="gold nn-ok" onclick="window.print()">🖨 چاپ / PDF</button><button type="button" class="secondary nn-ok" onclick="document.getElementById(\'wdReport\').remove()">بندول</button></div>';
+  document.body.appendChild(o);
+};
+setInterval(function(){var b=G('wdPanel');if(b&&!b.classList.contains('hide')&&!document.activeElement.matches('select'))render()},20000);
 })();
 </script>
 
