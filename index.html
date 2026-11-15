@@ -3392,7 +3392,7 @@ function R(){var p=$$('nnOrdPanel'),d=ld(),o='<button class="sec" onclick="nnClo
   if(owner())o+='<div class="actions"><button class="sec" onclick="nnOrdDel(\''+x.id+'\')">حذف</button>'+(x.kind==='pdf'||x.kind==='img'?'<button class="sec" onclick="nnOrdRename(\''+x.id+'\')">✏ نوم بدلول</button>':'')+'</div>';
   o+='</div>'});
  if(!l.length)o+='<div class="muted">دلته تر اوسه څه نشته.</div>';
- if(canAdd()){var lab={inv:'+ PDF ثبت کړئ (څو واره یو ځل)',all:'+ PDF ثبت کړئ (څو واره یو ځل)',ord:'+ نوی اډر (نوټ + غږ)',parts:'+ پارټ نمبر عکس'}[sec];o+='<div class="actions"><button onclick="nnAdd()">'+lab+'</button></div>'}
+ if(canAdd()){var lab={inv:'+ PDF ثبت کړئ (څو واره یو ځل)',all:'+ PDF ثبت کړئ (څو واره یو ځل)',ord:'+ نوی اډر (نوټ + غږ)',parts:'+ پارټ نمبر عکس'}[sec];o+='<div class="actions"><button onclick="nnAdd(\'pdf\')">+ PDF ثبت کړئ (څو واره)</button><button class="sec" onclick="nnAdd(\'img\')">+ عکس ثبت کړئ</button></div>'}
  p.innerHTML=o;
  l.forEach(function(x){if(x.kind==='part')blob(x.id).then(function(b){var e=$$('pi_'+x.id);if(b&&e){var i=new Image();i.className='pn';i.src=URL.createObjectURL(b);e.appendChild(i)}else if(e)e.textContent='عکس نشته'});if(x.audio)blob(x.id+'a').then(function(b){var e=$$('au_'+x.id);if(b&&e){var a=document.createElement('audio');a.controls=true;a.src=URL.createObjectURL(b);e.appendChild(a)}})})}
 window.nnOrdOpen=function(id){cur=id;R()};window.nnSec=function(s){sec=s;R()};
@@ -3402,18 +3402,20 @@ window.nnOrdDel=function(id){if(!owner())return;if(!confirm('حذف کړم؟'))r
 window.nnOrdNote=function(id,v){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(x){x.note=v;sv(d)}};
 window.nnFile=function(id){var w=window.open('','_blank');blob(id).then(function(b){if(!b){if(w)w.close();alert('فایل ونه موندل شو.');return}var u=URL.createObjectURL(b);if(w)w.location.href=u;else location.href=u})};
 window.nnOrdRename=function(id){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(!x)return;var t=prompt('نوی نوم:',x.title);if(!t||!t.trim())return;x.title=t.trim();sv(d);R()};
-window.nnAdd=function(){
- var inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='application/pdf,.pdf,image/*';inp.style.cssText='position:fixed;left:-9999px';document.body.appendChild(inp);
- inp.onchange=function(){var fs=Array.prototype.slice.call(inp.files||[]);setTimeout(function(){inp.remove()},60000);if(!fs.length)return;var n=0,fail=0;
-  fs.reduce(function(pr,f){return pr.then(function(){var isPdf=/\.pdf$/i.test(f.name)||f.type==='application/pdf',id='o'+Date.now()+Math.random().toString(36).slice(2,6),p=isPdf?Promise.resolve(new Blob([f],{type:'application/pdf'})):shrink(f);
-   return p.then(function(b){return put(id,b).then(function(){return get(id)}).then(function(x){if(!x)throw 0;up(id,b);var d=ld(),now=new Date();d.orders.push({id:id,co:cur,sec:sec,solar:sol(now),date:iso(now),by:'owner',kind:isPdf?'pdf':'img',title:f.name.replace(/\.[^.]+$/,'')||'فایل'});sv(d);n++})}).catch(function(){fail++})})},Promise.resolve()).then(function(){R();alert('ثبت شول: '+n+(fail?'\nنه ثبت شول: '+fail:''))})};
+window.nnAdd=function(mode){
+ var pdf=mode!=='img';
+ var inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept=pdf?'application/pdf,.pdf':'image/*';inp.style.cssText='position:fixed;left:-9999px';document.body.appendChild(inp);
+ function rb(f){return f.arrayBuffer?f.arrayBuffer():new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result)};r.onerror=function(){rej(r.error||new Error('read'))};r.readAsArrayBuffer(f)})}
+ inp.onchange=function(){var fs=Array.prototype.slice.call(inp.files||[]);setTimeout(function(){inp.remove()},60000);if(!fs.length)return;var n=0,errs=[];
+  fs.reduce(function(pr,f){return pr.then(function(){var id='o'+Date.now()+Math.random().toString(36).slice(2,6);
+   return rb(f).then(function(buf){var raw=new Blob([buf],{type:pdf?'application/pdf':(f.type||'image/jpeg')});return pdf?raw:shrink(raw)}).then(function(b){return put(id,b).then(function(){return get(id)}).then(function(x){if(!x)throw new Error('IndexedDB');up(id,b);var d=ld(),now=new Date();d.orders.push({id:id,co:cur,sec:sec,solar:sol(now),date:iso(now),by:'owner',kind:pdf?'pdf':'img',title:f.name.replace(/\.[^.]+$/,'')||'فایل'});sv(d);n++})}).catch(function(e){errs.push(f.name+' — '+((e&&e.message)||e))})})},Promise.resolve()).then(function(){R();alert('ثبت شول: '+n+(errs.length?'\nنه ثبت شول:\n'+errs.join('\n'):''))})};
  inp.click()};
 function fin(d,r){d=ld();d.orders.push(r);sv(d);R()}
 function rec(){return new Promise(function(res){if(!window.MediaRecorder||!navigator.mediaDevices){alert('غږ ثبتول نه ملاتړ کیږي.');return res(null)}navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){var m=new MediaRecorder(s),ch=[];m.ondataavailable=function(e){ch.push(e.data)};m.onstop=function(){s.getTracks().forEach(function(t){t.stop()});res(new Blob(ch,{type:m.mimeType||'audio/webm'}))};m.start();alert('ریکارډ روان دی. د درولو لپاره OK ووهئ.');m.stop()}).catch(function(){alert('مایکروفون اجازه نشته.');res(null)})})}
 })();
 </script>
-<div id="nnBuild" class="no-print" style="text-align:center;font-size:12px;color:#687482;padding:6px">نسخه 5 — کرایې شمسي، څو PDF</div>
+<div id="nnBuild" class="no-print" style="text-align:center;font-size:12px;color:#687482;padding:6px">نسخه 6</div>
 <script id="nn-build">
-(function(){try{var B='v5';if(localStorage.getItem('NN_BUILD')===B)return;localStorage.setItem('NN_BUILD',B);var p=[];if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}));if(window.caches)p.push(caches.keys().then(function(k){return Promise.all(k.map(function(x){return caches.delete(x)}))}));Promise.all(p).then(function(){location.reload()}).catch(function(){})}catch(e){}})();
+(function(){try{var B='v6';if(localStorage.getItem('NN_BUILD')===B)return;localStorage.setItem('NN_BUILD',B);var p=[];if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}));if(window.caches)p.push(caches.keys().then(function(k){return Promise.all(k.map(function(x){return caches.delete(x)}))}));Promise.all(p).then(function(){location.reload()}).catch(function(){})}catch(e){}})();
 </script>
 </body></html>
