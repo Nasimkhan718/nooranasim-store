@@ -3240,12 +3240,14 @@ setInterval(function(){var b=G('wdPanel');if(b&&!b.classList.contains('hide')&&!
 </script>
 
 <style id="nn-v2-css">
-.tabs button,.tabs button.secondary,#nnTabRent,#nnTabExp{background:#ffe600!important;color:#1a1a1a!important;font-weight:800;border:2px solid #c9b300}
-.tabs button.active{outline:3px solid #b68a36;background:#fff176!important}
+.tabs button.nnOn{background:#ffe600!important;color:#1a1a1a!important;font-weight:800;border:2px solid #c9b300}
+.tabs button.active:not(.nnOn){background:#233343!important}
+body.nn-x #editor,body.nn-x #savedPanel,body.nn-x #ledgerPanel,body.nn-x #inventoryPanel{display:none!important}
+#nnRentPanel button.sel,#nnExpPanel button.sel,#nnOrdPanel button.sel,#sideCustomer:not(.secondary),#sideSupplier:not(.secondary),#catAFN:not(.secondary),#catPKR:not(.secondary),#catUSD:not(.secondary){background:#ffe600!important;color:#111!important;border:2px solid #c9b300!important;font-weight:800}
 .tabs{flex-wrap:wrap}
 #nnRentPanel,#nnExpPanel{border:2px solid #ffe600}
-#nnRentPanel button,#nnExpPanel button{background:#ffe600;color:#1a1a1a;font-weight:700}
-#nnRentPanel button.sec,#nnExpPanel button.sec{background:#e5e7eb}
+#nnRentPanel button,#nnExpPanel button{background:#233343;color:#fff}
+#nnRentPanel button.sec,#nnExpPanel button.sec{background:#586675}
 #nnRentBanner{position:fixed;top:0;left:0;right:0;z-index:99998;background:#d32f2f;color:#fff;padding:10px;text-align:center;font-weight:800}
 .nn-card{border:1px solid #d9dee5;border-radius:10px;padding:10px;margin:8px 0;background:#fffde7}
 .nn-note{width:100%;min-height:70px;margin-top:8px;background:#fffde7}
@@ -3267,8 +3269,11 @@ function mk(id,t,fn){var b=document.createElement('button');b.id=id;b.className=
 mk('nnTabRent','🏠 کرایې',function(){nnShow('nnRentPanel');rentR()});
 mk('nnTabExp','💰 مصرفونه',function(){nnShow('nnExpPanel');expR()});
 function nnHideMine(){['nnRentPanel','nnExpPanel'].forEach(function(i){$$(i).classList.add('hide')})}
-function nnShow(id){['editor','savedPanel','ledgerPanel','inventoryPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});nnHideMine();$$(id).classList.remove('hide');window.scrollTo(0,0)}
-tabs.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.id!=='nnTabRent'&&b.id!=='nnTabExp')nnHideMine()},true);
+function nnShow(id){['editor','savedPanel','ledgerPanel','inventoryPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});nnHideMine();var o=$$('nnOrdPanel');if(o)o.classList.add('hide');document.body.classList.add('nn-x');$$(id).classList.remove('hide');window.scrollTo(0,0)}
+function nnOn(b){tabs.querySelectorAll('button').forEach(function(x){x.classList.remove('nnOn')});if(b)b.classList.add('nnOn')}
+window.nnClose=function(){document.body.classList.remove('nn-x');nnHideMine();var o=$$('nnOrdPanel');if(o)o.classList.add('hide');['savedPanel','ledgerPanel','inventoryPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});$$('editor').classList.remove('hide');nnOn($$('invoiceTab'));window.scrollTo(0,0)};
+tabs.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;nnOn(b);if(b.id==='nnTabRent'||b.id==='nnTabExp'||b.id==='nnTabOrd')return;document.body.classList.remove('nn-x');nnHideMine();var o=$$('nnOrdPanel');if(o)o.classList.add('hide');if(b.id==='invoiceTab'){['savedPanel','ledgerPanel','inventoryPanel'].forEach(function(i){var e2=$$(i);if(e2)e2.classList.add('hide')});$$('editor').classList.remove('hide')}},true);
+nnOn($$('invoiceTab'));
 // 2) no Gregorian date on printed/image documents
 window.gregFormatted=function(){return ''};
 var _st=window.showTxnReceipt;
@@ -3281,7 +3286,7 @@ window.renderHistory=function(id){_rh(id);var d=ledgerData(),p=d.parties.find(fu
 // 4) expenses
 function expR(){
  var b=$$('nnExpPanel'),d=ld('NN_EXPENSES_V1',{cats:['ګدام مصرف','کور','دوکان'],items:[]}),y=Number(window.nnExpYear||1405);
- var es=d.items.filter(function(e){return e.year===y}),h='<h3>💰 مصرفونه</h3><div style="margin:6px 0"><label>کال</label><select onchange="nnExpYear=Number(this.value);nnExpR()">'+[1404,1405,1406,1407].map(function(x){return '<option '+(x===y?'selected':'')+'>'+x+'</option>'}).join('')+'</select></div>';
+ var es=d.items.filter(function(e){return e.year===y}),h='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>💰 مصرفونه</h3><div style="margin:6px 0"><label>کال</label><select onchange="nnExpYear=Number(this.value);nnExpR()">'+[1404,1405,1406,1407].map(function(x){return '<option '+(x===y?'selected':'')+'>'+x+'</option>'}).join('')+'</select></div>';
  d.cats.forEach(function(c){var l=es.filter(function(e){return e.cat===c});var a=l.reduce(function(s,e){return s+e.afn},0),u=l.reduce(function(s,e){return s+e.usd},0);
   h+='<div class="nn-card"><b>'+esc(c)+'</b> — '+fmt(a)+' افغانۍ = '+fmt(u)+' $';
   l.slice().reverse().forEach(function(e){h+='<div class="saved"><div class="saved-main">'+esc(e.solar)+' — <b>'+fmt(e.afn)+'</b> افغانۍ ('+fmt(e.usd)+'$، نرخ '+fmt(e.rate)+')<br>'+esc(e.why)+'</div><button class="sec" onclick="nnExpDel(\''+e.id+'\')">×</button></div>'});
@@ -3303,7 +3308,7 @@ function addM(s){var d=new Date(s);d.setMonth(d.getMonth()+1);return iso(d)}
 function paidSum(e){return (e.pays||[]).reduce(function(s,p){return s+p.amt},0)}
 function rentR(){
  var b=$$('nnRentPanel'),side=window.nnRentSide,d=rentD(),es=d.items.filter(function(e){return e.side===side});
- var h='<h3>🏠 کرایې</h3><div class="actions"><button class="'+(side==='they'?'':'sec')+'" onclick="nnRentSide=\'they\';nnRentR()">زموږ په خلګو پسي</button><button class="'+(side==='we'?'':'sec')+'" onclick="nnRentSide=\'we\';nnRentR()">په موږ پسي د خلکو</button></div>';
+ var h='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>🏠 کرایې</h3><div class="actions"><button class="'+(side==='they'?'sel':'')+'" onclick="nnRentSide=\'they\';nnRentR()">زموږ په خلګو پسي</button><button class="'+(side==='we'?'sel':'')+'" onclick="nnRentSide=\'we\';nnRentR()">په موږ پسي د خلکو</button></div>';
  var tot=0,rem=0;
  es.forEach(function(e){var p=paidSum(e),t=e.amt*e.months,r=Math.max(0,t-p);tot+=t;rem+=r;
   h+='<div class="nn-card"><b>'+esc(e.name)+'</b> — میاشتنۍ '+fmt(e.amt)+' افغانۍ × '+e.months+'<br>ټوله کرایه: '+fmt(t)+' | ورکړل شوې: '+fmt(p)+' | <b>پاتې: '+fmt(r)+'</b><br>راتلونکې نېټه: <b>'+esc(e.due)+'</b>';
@@ -3329,7 +3334,7 @@ chk();setInterval(chk,60000);
 })();
 </script>
 <style id="nn-v3-css">
-#nnOrdPanel{border:2px solid #ffe600}#nnOrdPanel button{background:#ffe600;color:#1a1a1a;font-weight:700}#nnOrdPanel button.sec{background:#e5e7eb}
+#nnOrdPanel{border:2px solid #ffe600}#nnOrdPanel button{background:#233343;color:#fff}#nnOrdPanel button.sec{background:#586675}
 #nnOrdPanel img.pn{width:100%;max-width:220px;border-radius:8px;display:block;margin:auto}
 </style>
 <div id="nnOrdPanel" class="panel hide no-print"></div>
@@ -3356,11 +3361,11 @@ function blob(id){return get(id).then(function(b){return b||cloud(id)})}
 function shrink(f){return new Promise(function(res){var u=URL.createObjectURL(f),im=new Image();im.onload=function(){var k=Math.min(1,1200/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=im.naturalWidth*k;c.height=im.naturalHeight*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(res,'image/jpeg',.7)};im.onerror=function(){res(f)};im.src=u})}
 function pick(acc,cap){return new Promise(function(res){var i=document.createElement('input');i.type='file';i.accept=acc;if(cap)i.capture=cap;i.onchange=function(){res(i.files[0]||null)};i.click()})}
 // tab
-var tabs=document.querySelector('.tabs'),b=document.createElement('button');b.id='nnTabOrd';b.className='secondary';b.style.cssText='background:#ffe600;color:#1a1a1a;font-weight:800;border:2px solid #c9b300';b.textContent='🏢 کمپنۍ او اډرونه';b.onclick=function(){['editor','savedPanel','ledgerPanel','inventoryPanel','nnRentPanel','nnExpPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});$$('nnOrdPanel').classList.remove('hide');R()};tabs.appendChild(b);
-tabs.addEventListener('click',function(e){var x=e.target.closest('button');if(x&&x.id!=='nnTabOrd')$$('nnOrdPanel').classList.add('hide')},true);
+var tabs=document.querySelector('.tabs'),b=document.createElement('button');b.id='nnTabOrd';b.className='secondary';b.style.cssText='background:#ffe600;color:#1a1a1a;font-weight:800;border:2px solid #c9b300';b.textContent='🏢 کمپنۍ او اډرونه';b.onclick=function(){document.body.classList.add('nn-x');['editor','savedPanel','ledgerPanel','inventoryPanel','nnRentPanel','nnExpPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});$$('nnOrdPanel').classList.remove('hide');R()};tabs.appendChild(b);
+
 var cur=null,sec='inv'; // cur=company id, sec: inv | all | ord | parts
 var h=function(s){return esc(s==null?'':s)};
-function R(){var p=$$('nnOrdPanel'),d=ld(),o='<h3>🏢 کمپنۍ، انوایسونه، نوي اډرونه</h3>';
+function R(){var p=$$('nnOrdPanel'),d=ld(),o='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>🏢 کمپنۍ، انوایسونه، نوي اډرونه</h3>';
  if(brother())o+='<div class="muted">د ورور حالت: اډر ثبتولای شي، حذف نه شي کولای.</div>';
  if(!cur){
   d.cos.forEach(function(c){o+='<div class="saved"><div class="saved-main"><b>'+h(c.name)+'</b></div><button onclick="nnOrdOpen(\''+c.id+'\')">خلاصول</button>'+(owner()?'<button class="sec" onclick="nnCoDel(\''+c.id+'\')">حذف</button>':'')+'</div>'});
@@ -3368,7 +3373,7 @@ function R(){var p=$$('nnOrdPanel'),d=ld(),o='<h3>🏢 کمپنۍ، انوایس
   if(owner())o+='<div class="actions"><button onclick="nnCoAdd()">+ نوی حساب (بېنسن، پاکستان، ...)</button></div>';
   p.innerHTML=o;return}
  var c=d.cos.filter(function(x){return x.id===cur})[0];if(!c){cur=null;return R()}
- o+='<div class="actions"><button class="sec" onclick="nnOrdOpen(null)">← شاته</button></div><h3>'+h(c.name)+'</h3><div class="actions">'+[['inv','د کمپنۍ انوایسونه'],['all','تمام شود انوایسونه'],['ord','نوی اډر'],['parts','پارټ نمبر عکسونه']].map(function(t){return '<button class="'+(sec===t[0]?'':'sec')+'" onclick="nnSec(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')+'</div>';
+ o+='<div class="actions"><button class="sec" onclick="nnOrdOpen(null)">← شاته</button></div><h3>'+h(c.name)+'</h3><div class="actions">'+[['inv','د کمپنۍ انوایسونه'],['all','تمام شود انوایسونه'],['ord','نوی اډر'],['parts','پارټ نمبر عکسونه']].map(function(t){return '<button class="'+(sec===t[0]?'sel':'')+'" onclick="nnSec(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')+'</div>';
  var l=d.orders.filter(function(x){return x.co===cur&&x.sec===sec}).slice().reverse();
  l.forEach(function(x){o+='<div class="nn-card" style="border:1px solid #ddd;border-radius:10px;padding:10px;margin:8px 0;background:#fffde7"><b>'+h(x.title)+'</b> <span class="muted">'+h(x.solar)+(x.by==='brother'?' — ورور':'')+'</span>';
   if(x.kind==='pdf'||x.kind==='img')o+='<div><button onclick="nnFile(\''+x.id+'\')">📄 خلاصول</button></div>';
