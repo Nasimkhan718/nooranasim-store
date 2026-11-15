@@ -3301,32 +3301,39 @@ window.nnExpAdd=function(c){var a=prompt('مبلغ (افغانۍ) — '+c);if(a=
  var d=ld('NN_EXPENSES_V1',{cats:['ګدام مصرف','کور','دوکان'],items:[]}),n=new Date(),y=Number(window.nnExpYear||1405);
  d.items.push({id:'x'+Date.now(),year:y,cat:c,afn:a,rate:r,usd:Math.round(a/r*100)/100,why:w.trim(),date:iso(n),solar:sol(n)});sv('NN_EXPENSES_V1',d);expR()};
 window.nnExpDel=function(id){if(!confirm('دا مصرف حذف کړم؟'))return;var d=ld('NN_EXPENSES_V1',{cats:[],items:[]});d.items=d.items.filter(function(e){return e.id!==id});sv('NN_EXPENSES_V1',d);expR()};
-// 5) rent
+// 5) rent (Hijri-Shamsi dates, checkmarks, remainder)
+function g2j(gy,gm,gd){var g=[0,31,59,90,120,151,181,212,243,273,304,334];var jy=(gy>1600)?979:0;gy-=(gy>1600)?1600:621;var gy2=(gm>2)?(gy+1):gy;var days=(365*gy)+parseInt((gy2+3)/4)-parseInt((gy2+99)/100)+parseInt((gy2+399)/400)-80+gd+g[gm-1];jy+=33*parseInt(days/12053);days%=12053;jy+=4*parseInt(days/1461);days%=1461;if(days>365){jy+=parseInt((days-1)/365);days=(days-1)%365}var jm=(days<186)?1+parseInt(days/31):7+parseInt((days-186)/30);var jd=1+((days<186)?(days%31):((days-186)%30));return [jy,jm,jd]}
+function j2g(jy,jm,jd){var gy=(jy>979)?1600:621;jy-=(jy>979)?979:0;var days=(365*jy)+(parseInt(jy/33)*8)+parseInt(((jy%33)+3)/4)+78+jd+((jm<7)?(jm-1)*31:((jm-7)*30)+186);gy+=400*parseInt(days/146097);days%=146097;if(days>36524){gy+=100*parseInt(--days/36524);days%=36524;if(days>=365)days++}gy+=4*parseInt(days/1461);days%=1461;if(days>365){gy+=parseInt((days-1)/365);days=(days-1)%365}var gd=days+1;var sal=[0,31,((gy%4==0&&gy%100!=0)||(gy%400==0))?29:28,31,30,31,30,31,31,30,31,30,31];var gm;for(gm=0;gm<13&&gd>sal[gm];gm++)gd-=sal[gm];return [gy,gm,gd]}
+function dim(m){return m<=6?31:(m<=11?30:29)}
+function pS(s){var a=String(s||'').trim().replace(/[\u0660-\u0669\u06f0-\u06f9]/g,function(c){var x=c.charCodeAt(0);return String(x>=1776?x-1776:x-1632)}).split(/[\/\-\.]/).map(Number);if(a.length!==3||a.some(isNaN)||a[0]<1300||a[0]>1500||a[1]<1||a[1]>12||a[2]<1||a[2]>dim(a[1]))return null;return a}
+function fS(a){return a[0]+'/'+a[1]+'/'+a[2]}
+function sG(s){var a=pS(s);if(!a)return '9999-12-31';var g=j2g(a[0],a[1],a[2]);return g[0]+'-'+String(g[1]).padStart(2,'0')+'-'+String(g[2]).padStart(2,'0')}
+function addMs(a,k){var m=a[1]-1+k,y=a[0]+Math.floor(m/12);m=((m%12)+12)%12+1;return [y,m,Math.min(a[2],dim(m))]}
 window.nnRentSide=window.nnRentSide||'they';
-function rentD(){return ld('NN_RENT_V1',{items:[]})}
-function addM(s){var d=new Date(s);d.setMonth(d.getMonth()+1);return iso(d)}
-function paidSum(e){return (e.pays||[]).reduce(function(s,p){return s+p.amt},0)}
+function rentD(){var d=ld('NN_RENT_V1',{items:[]}),ch=false;d.items.forEach(function(e){if(!e.rows){var g=String(e.due||iso(new Date())).split('-').map(Number),j=g2j(g[0],g[1],g[2]),n=(e.pays||[]).length,st=addMs(j,-n);e.rows=[];for(var i=0;i<(e.months||1);i++){var r={ds:fS(addMs(st,i)),paid:i<n};if(r.paid){r.pd=e.pays[i].solar;r.pamt=e.pays[i].amt}e.rows.push(r)}ch=true}});if(ch)sv('NN_RENT_V1',d);return d}
+function item(d,id){return d.items.filter(function(x){return x.id===id})[0]}
+function paidSum(e){return e.rows.reduce(function(s,r){return s+(r.paid?(r.pamt||e.amt):0)},0)}
 function rentR(){
  var b=$$('nnRentPanel'),side=window.nnRentSide,d=rentD(),es=d.items.filter(function(e){return e.side===side});
- var h='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>🏠 کرایې</h3><div class="actions"><button class="'+(side==='they'?'sel':'')+'" onclick="nnRentSide=\'they\';nnRentR()">زموږ په خلګو پسي</button><button class="'+(side==='we'?'sel':'')+'" onclick="nnRentSide=\'we\';nnRentR()">په موږ پسي د خلکو</button></div>';
+ var h='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>🏠 کرایې</h3><div class="actions"><button class="'+(side==='they'?'sel':'')+'" onclick="nnRentSide=\'they\';nnRentR()">زموږ په خلګو پسي (موږ ته رسوي)</button><button class="'+(side==='we'?'sel':'')+'" onclick="nnRentSide=\'we\';nnRentR()">په موږ پسي د خلکو (موږ ورکوو)</button></div>';
  var tot=0,rem=0;
- es.forEach(function(e){var p=paidSum(e),t=e.amt*e.months,r=Math.max(0,t-p);tot+=t;rem+=r;
-  h+='<div class="nn-card"><b>'+esc(e.name)+'</b> — میاشتنۍ '+fmt(e.amt)+' افغانۍ × '+e.months+'<br>ټوله کرایه: '+fmt(t)+' | ورکړل شوې: '+fmt(p)+' | <b>پاتې: '+fmt(r)+'</b><br>راتلونکې نېټه: <b>'+esc(e.due)+'</b>';
-  (e.pays||[]).forEach(function(q){h+='<div>✅ '+esc(q.solar)+' — '+fmt(q.amt)+'</div>'});
-  h+='<div class="actions"><button onclick="nnRentPay(\''+e.id+'\')">✔ دا میاشت ورکړل شوې</button><button class="sec" onclick="nnRentMedia(\''+e.id+'\',\'photo\')">📷</button><button class="sec" onclick="nnRentMedia(\''+e.id+'\',\'audio\')">🎙</button><button class="sec" onclick="nnRentDue(\''+e.id+'\')">📅 نېټه</button><button class="sec" onclick="nnRentDel(\''+e.id+'\')">حذف</button></div><textarea class="nn-note" placeholder="نوټ" onchange="nnRentNote(\''+e.id+'\',this.value)">'+esc(e.note||'')+'</textarea></div>'});
+ es.forEach(function(e){var p=paidSum(e),t=e.amt*e.rows.length,r=Math.max(0,t-p),nx=e.rows.filter(function(x){return !x.paid})[0];tot+=t;rem+=r;
+  h+='<div class="nn-card"><b style="font-size:18px">'+esc(e.name)+'</b> <button class="sec" onclick="nnRentRename(\''+e.id+'\')">✏ نوم</button><br>میاشتنۍ: '+fmt(e.amt)+' افغانۍ × '+e.rows.length+' میاشتې<br>ټوله کرایه: '+fmt(t)+' | ورکړل شوې: '+fmt(p)+'<div style="font-size:19px;font-weight:800;color:#b71c1c;margin:4px 0">پاتې (ریمانډر): '+fmt(r)+' افغانۍ</div>'+(nx?'<div style="background:#fff59d;padding:6px;border-radius:8px">📅 د کرایې د رسولو نېټه (هجري شمسي): <b>'+esc(nx.ds)+'</b></div>':'<div style="color:#16803c;font-weight:800">✅ ټوله کرایه بشپړه شوه</div>');
+  e.rows.forEach(function(x,i){h+='<div class="saved" style="align-items:center"><input type="checkbox" '+(x.paid?'checked':'')+' onchange="nnRowTog(\''+e.id+'\','+i+',this.checked)" style="width:28px;height:28px;accent-color:#16803c;flex-shrink:0"><div class="saved-main">'+(i+1)+'. <b>'+esc(x.ds)+'</b>'+(x.paid?' — <span style="color:#16803c;font-weight:800">✅ ورکړل شوې</span> <span class="muted">('+esc(x.pd||'')+' | '+fmt(x.pamt||e.amt)+')</span>':'')+'</div><button class="sec" onclick="nnRowDate(\''+e.id+'\','+i+')">📅 نېټه بدل</button></div>'});
+  h+='<div class="actions"><button class="sec" onclick="nnRentMedia(\''+e.id+'\',\'photo\')">📷 عکس</button><button class="sec" onclick="nnRentMedia(\''+e.id+'\',\'audio\')">🎙 غږ</button><button class="sec" onclick="nnRentDel(\''+e.id+'\')">حذف</button></div><textarea class="nn-note" placeholder="نوټ" onchange="nnRentNote(\''+e.id+'\',this.value)">'+esc(e.note||'')+'</textarea></div>'});
  h+='<div class="sum"><strong>ټوله کرایه / پاتې</strong><strong>'+fmt(tot)+' / '+fmt(rem)+' افغانۍ</strong></div><button onclick="nnRentAdd()">+ نوې کرایه</button>';
  b.innerHTML=h}
 window.nnRentR=rentR;
-window.nnRentAdd=function(){var n=prompt('نوم:');if(!n||!n.trim())return;var a=Number(prompt('میاشتنۍ کرایه (افغانۍ):'));if(!(a>0)){alert('مبلغ سم ولیکئ.');return}var m=Number(prompt('څو میاشتې؟','12'));if(!(m>0)){alert('سمه شمېره ولیکئ.');return}var du=prompt('د ورکړې/اخیستلو نېټه (YYYY-MM-DD):',iso(new Date()));if(!/^\d{4}-\d\d-\d\d$/.test(du||'')){alert('نېټه سمه ولیکئ.');return}var d=rentD();d.items.push({id:'r'+Date.now(),side:window.nnRentSide,name:n.trim(),amt:a,months:m,due:du,pays:[],note:''});sv('NN_RENT_V1',d);rentR()};
-window.nnRentPay=function(id){var d=rentD(),e=d.items.filter(function(x){return x.id===id})[0];if(!e)return;var a=prompt('مبلغ (افغانۍ):',e.amt);if(a===null)return;a=Number(a);if(!(a>0))return;var n=new Date();e.pays=e.pays||[];e.pays.push({amt:a,date:iso(n),solar:sol(n)});e.due=addM(e.due);sv('NN_RENT_V1',d);rentR();chk()};
-window.nnRentDue=function(id){var d=rentD(),e=d.items.filter(function(x){return x.id===id})[0];var v=prompt('نوې نېټه (YYYY-MM-DD):',e.due);if(/^\d{4}-\d\d-\d\d$/.test(v||'')){e.due=v;sv('NN_RENT_V1',d);rentR();chk()}};
-window.nnRentNote=function(id,v){var d=rentD(),e=d.items.filter(function(x){return x.id===id})[0];if(e){e.note=v;sv('NN_RENT_V1',d)}};
+window.nnRentAdd=function(){var n=prompt('نوم:');if(!n||!n.trim())return;var a=Number(prompt('میاشتنۍ کرایه (افغانۍ):'));if(!(a>0)){alert('مبلغ سم ولیکئ.');return}var m=Number(prompt('څو میاشتې؟','12'));if(!(m>0)){alert('سمه شمېره ولیکئ.');return}var st=pS(prompt('لومړۍ ورکړې/رسولو نېټه (هجري شمسي، مثال 1405/9/15):',sol(new Date())));if(!st){alert('نېټه سمه ولیکئ، مثال: 1405/9/15');return}var rows=[];for(var i=0;i<m;i++)rows.push({ds:fS(addMs(st,i)),paid:false});var d=rentD();d.items.push({id:'r'+Date.now(),side:window.nnRentSide,name:n.trim(),amt:a,rows:rows,note:''});sv('NN_RENT_V1',d);rentR();chk()};
+window.nnRowTog=function(id,i,on){var d=rentD(),e=item(d,id);if(!e)return;var r=e.rows[i];if(on){var a=prompt('مبلغ (افغانۍ):',e.amt);if(a===null||!(Number(a)>0)){rentR();return}r.paid=true;r.pamt=Number(a);r.pd=sol(new Date())}else{if(!confirm('دا ✅ لرې کړم؟')){rentR();return}r.paid=false;delete r.pamt;delete r.pd}sv('NN_RENT_V1',d);rentR();chk()};
+window.nnRowDate=function(id,i){var d=rentD(),e=item(d,id);if(!e)return;var v=pS(prompt('نوې نېټه (هجري شمسي، مثال 1405/9/15):',e.rows[i].ds));if(!v){alert('نېټه سمه ولیکئ.');return}e.rows[i].ds=fS(v);sv('NN_RENT_V1',d);rentR();chk()};
+window.nnRentRename=function(id){var d=rentD(),e=item(d,id);if(!e)return;var n=prompt('نوی نوم:',e.name);if(!n||!n.trim())return;e.name=n.trim();sv('NN_RENT_V1',d);rentR()};
+window.nnRentNote=function(id,v){var d=rentD(),e=item(d,id);if(e){e.note=v;sv('NN_RENT_V1',d)}};
 window.nnRentDel=function(id){if(!confirm('حذف کړم؟'))return;var d=rentD();d.items=d.items.filter(function(x){return x.id!==id});sv('NN_RENT_V1',d);rentR();chk()};
-window.nnRentMedia=function(id,k){var a=window.NN_MEDIA_API,e=rentD().items.filter(function(x){return x.id===id})[0];if(!a||!e){alert('پاڼه بیا خلاصه کړئ.');return}a.open({t:'rent',id:id,name:e.name},k)};
-// reminders (works while the app is open)
-function chk(){var t=iso(new Date()),d=rentD(),due=d.items.filter(function(e){return e.due<=t&&e.amt*e.months-paidSum(e)>0}),b=$$('nnRentBanner');
+window.nnRentMedia=function(id,k){var a=window.NN_MEDIA_API,e=item(rentD(),id);if(!a||!e){alert('پاڼه بیا خلاصه کړئ.');return}a.open({t:'rent',id:id,name:e.name},k)};
+function chk(){var t=iso(new Date()),d=rentD(),due=[];d.items.forEach(function(e){var nx=e.rows.filter(function(x){return !x.paid})[0];if(nx&&sG(nx.ds)<=t)due.push({e:e,ds:nx.ds})}),b=$$('nnRentBanner');
  if(!due.length){if(b)b.remove();return}
- var txt=due.map(function(e){return (e.side==='we'?'ورکول: ':'اخیستل: ')+e.name}).join(' | ');
+ var txt=due.map(function(x){return (x.e.side==='we'?'ورکول: ':'اخیستل: ')+x.e.name+' ('+x.ds+')'}).join(' | ');
  if(!b){b=document.createElement('div');b.id='nnRentBanner';b.className='no-print';b.onclick=function(){nnShow('nnRentPanel');rentR()};document.body.appendChild(b)}
  b.textContent='⏰ د کرایې وخت رسېدلی: '+txt;
  var k='nnNotif'+t;if(!localStorage.getItem(k)){localStorage.setItem(k,'1');try{if(navigator.vibrate)navigator.vibrate([300,150,300,150,300]);if('Notification' in window){if(Notification.permission==='granted')new Notification('⏰ کرایه',{body:txt});else if(Notification.permission!=='denied')Notification.requestPermission()}}catch(e){}}}
@@ -3382,10 +3389,10 @@ function R(){var p=$$('nnOrdPanel'),d=ld(),o='<button class="sec" onclick="nnClo
   if(x.audio)o+='<div id="au_'+x.id+'"></div>';
   if(owner())o+='<textarea style="width:100%;margin-top:6px;background:#fff" placeholder="نوټ" onchange="nnOrdNote(\''+x.id+'\',this.value)">'+h(x.note||'')+'</textarea>';
   else if(x.note)o+='<div class="muted">'+h(x.note)+'</div>';
-  if(owner())o+='<div class="actions"><button class="sec" onclick="nnOrdDel(\''+x.id+'\')">حذف</button></div>';
+  if(owner())o+='<div class="actions"><button class="sec" onclick="nnOrdDel(\''+x.id+'\')">حذف</button>'+(x.kind==='pdf'||x.kind==='img'?'<button class="sec" onclick="nnOrdRename(\''+x.id+'\')">✏ نوم بدلول</button>':'')+'</div>';
   o+='</div>'});
  if(!l.length)o+='<div class="muted">دلته تر اوسه څه نشته.</div>';
- if(canAdd()){var lab={inv:'+ PDF/عکس ثبت کړه',all:'+ PDF/عکس ثبت کړه',ord:'+ نوی اډر (نوټ + غږ)',parts:'+ پارټ نمبر عکس'}[sec];o+='<div class="actions"><button onclick="nnAdd()">'+lab+'</button></div>'}
+ if(canAdd()){var lab={inv:'+ PDF ثبت کړئ (څو واره یو ځل)',all:'+ PDF ثبت کړئ (څو واره یو ځل)',ord:'+ نوی اډر (نوټ + غږ)',parts:'+ پارټ نمبر عکس'}[sec];o+='<div class="actions"><button onclick="nnAdd()">'+lab+'</button></div>'}
  p.innerHTML=o;
  l.forEach(function(x){if(x.kind==='part')blob(x.id).then(function(b){var e=$$('pi_'+x.id);if(b&&e){var i=new Image();i.className='pn';i.src=URL.createObjectURL(b);e.appendChild(i)}else if(e)e.textContent='عکس نشته'});if(x.audio)blob(x.id+'a').then(function(b){var e=$$('au_'+x.id);if(b&&e){var a=document.createElement('audio');a.controls=true;a.src=URL.createObjectURL(b);e.appendChild(a)}})})}
 window.nnOrdOpen=function(id){cur=id;R()};window.nnSec=function(s){sec=s;R()};
@@ -3393,16 +3400,20 @@ window.nnCoAdd=function(){var n=prompt('د کمپنۍ/حساب نوم:');if(!n||
 window.nnCoDel=function(id){if(!confirm('دا حساب او ټول مواد یې حذف کړم؟'))return;if(!confirm('دوهم تایید: ایا رښتیا؟'))return;var d=ld();d.cos=d.cos.filter(function(c){return c.id!==id});d.orders=d.orders.filter(function(x){return x.co!==id});sv(d);R()};
 window.nnOrdDel=function(id){if(!owner())return;if(!confirm('حذف کړم؟'))return;var d=ld();d.orders=d.orders.filter(function(x){return x.id!==id});sv(d);R()};
 window.nnOrdNote=function(id,v){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(x){x.note=v;sv(d)}};
-window.nnFile=function(id){blob(id).then(function(b){if(b)window.open(URL.createObjectURL(b));else alert('فایل ونه موندل شو.')})};
+window.nnFile=function(id){var w=window.open('','_blank');blob(id).then(function(b){if(!b){if(w)w.close();alert('فایل ونه موندل شو.');return}var u=URL.createObjectURL(b);if(w)w.location.href=u;else location.href=u})};
+window.nnOrdRename=function(id){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(!x)return;var t=prompt('نوی نوم:',x.title);if(!t||!t.trim())return;x.title=t.trim();sv(d);R()};
 window.nnAdd=function(){
- var d=ld(),n=new Date(),id='o'+Date.now(),r={id:id,co:cur,sec:sec,solar:sol(n),date:iso(n),by:owner()?'owner':'brother',kind:'',title:''};
- if(sec==='ord'){var t=prompt('اډر ته نوم ورکړئ:');if(!t||!t.trim())return;r.title=t.trim();r.kind='note';r.text=prompt('د اډر لیکنه / تغیرات:')||'';
-  if(!confirm('غږ هم ثبت کړم؟'))return fin(d,r);
-  return rec().then(function(b){if(b){r.audio=true;put(id+'a',b);up(id+'a',b)}fin(d,r)})}
- if(sec==='parts'){return pick('image/*','environment').then(function(f){if(!f)return;var t=prompt('پښتو نوم ولیکئ (د عکس لاندې به راشي):');if(!t||!t.trim())return;r.title=t.trim();r.kind='part';return shrink(f).then(function(b){put(id,b);up(id,b);if(!confirm('غږ هم ثبت کړم؟'))return fin(d,r);return rec().then(function(a){if(a){r.audio=true;put(id+'a',a);up(id+'a',a)}fin(d,r)})})})}
- return pick('application/pdf,image/*').then(function(f){if(!f)return;var t=prompt('نوم:',f.name);if(!t||!t.trim())return;r.title=t.trim();r.kind=f.type==='application/pdf'?'pdf':'img';var pr=r.kind==='img'?shrink(f):Promise.resolve(f);return pr.then(function(b){put(id,b);up(id,b);fin(d,r)})})};
+ var inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='application/pdf,.pdf,image/*';inp.style.cssText='position:fixed;left:-9999px';document.body.appendChild(inp);
+ inp.onchange=function(){var fs=Array.prototype.slice.call(inp.files||[]);setTimeout(function(){inp.remove()},60000);if(!fs.length)return;var n=0,fail=0;
+  fs.reduce(function(pr,f){return pr.then(function(){var isPdf=/\.pdf$/i.test(f.name)||f.type==='application/pdf',id='o'+Date.now()+Math.random().toString(36).slice(2,6),p=isPdf?Promise.resolve(new Blob([f],{type:'application/pdf'})):shrink(f);
+   return p.then(function(b){return put(id,b).then(function(){return get(id)}).then(function(x){if(!x)throw 0;up(id,b);var d=ld(),now=new Date();d.orders.push({id:id,co:cur,sec:sec,solar:sol(now),date:iso(now),by:'owner',kind:isPdf?'pdf':'img',title:f.name.replace(/\.[^.]+$/,'')||'فایل'});sv(d);n++})}).catch(function(){fail++})})},Promise.resolve()).then(function(){R();alert('ثبت شول: '+n+(fail?'\nنه ثبت شول: '+fail:''))})};
+ inp.click()};
 function fin(d,r){d=ld();d.orders.push(r);sv(d);R()}
 function rec(){return new Promise(function(res){if(!window.MediaRecorder||!navigator.mediaDevices){alert('غږ ثبتول نه ملاتړ کیږي.');return res(null)}navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){var m=new MediaRecorder(s),ch=[];m.ondataavailable=function(e){ch.push(e.data)};m.onstop=function(){s.getTracks().forEach(function(t){t.stop()});res(new Blob(ch,{type:m.mimeType||'audio/webm'}))};m.start();alert('ریکارډ روان دی. د درولو لپاره OK ووهئ.');m.stop()}).catch(function(){alert('مایکروفون اجازه نشته.');res(null)})})}
 })();
+</script>
+<div id="nnBuild" class="no-print" style="text-align:center;font-size:12px;color:#687482;padding:6px">نسخه 5 — کرایې شمسي، څو PDF</div>
+<script id="nn-build">
+(function(){try{var B='v5';if(localStorage.getItem('NN_BUILD')===B)return;localStorage.setItem('NN_BUILD',B);var p=[];if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}));if(window.caches)p.push(caches.keys().then(function(k){return Promise.all(k.map(function(x){return caches.delete(x)}))}));Promise.all(p).then(function(){location.reload()}).catch(function(){})}catch(e){}})();
 </script>
 </body></html>
