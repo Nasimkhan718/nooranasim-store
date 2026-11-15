@@ -3361,19 +3361,19 @@ function blob(id){return get(id).then(function(b){return b||cloud(id)})}
 function shrink(f){return new Promise(function(res){var u=URL.createObjectURL(f),im=new Image();im.onload=function(){var k=Math.min(1,1200/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=im.naturalWidth*k;c.height=im.naturalHeight*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(res,'image/jpeg',.7)};im.onerror=function(){res(f)};im.src=u})}
 function pick(acc,cap){return new Promise(function(res){var i=document.createElement('input');i.type='file';i.accept=acc;if(cap)i.capture=cap;i.onchange=function(){res(i.files[0]||null)};i.click()})}
 // tab
-var tabs=document.querySelector('.tabs'),b=document.createElement('button');b.id='nnTabOrd';b.className='secondary';b.style.cssText='background:#ffe600;color:#1a1a1a;font-weight:800;border:2px solid #c9b300';b.textContent='🏢 کمپنۍ او اډرونه';b.onclick=function(){document.body.classList.add('nn-x');['editor','savedPanel','ledgerPanel','inventoryPanel','nnRentPanel','nnExpPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});$$('nnOrdPanel').classList.remove('hide');R()};tabs.appendChild(b);
+var tabs=document.querySelector('.tabs'),b=document.createElement('button');b.id='nnTabOrd';b.className='secondary';b.style.cssText='background:#ffe600;color:#1a1a1a;font-weight:800;border:2px solid #c9b300';b.textContent='🏢 د کمپنیانو اصلي او تمام شود انوایسونه';b.onclick=function(){document.body.classList.add('nn-x');['editor','savedPanel','ledgerPanel','inventoryPanel','nnRentPanel','nnExpPanel'].forEach(function(i){var e=$$(i);if(e)e.classList.add('hide')});$$('nnOrdPanel').classList.remove('hide');R()};tabs.appendChild(b);
 
 var cur=null,sec='inv'; // cur=company id, sec: inv | all | ord | parts
 var h=function(s){return esc(s==null?'':s)};
-function R(){var p=$$('nnOrdPanel'),d=ld(),o='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>🏢 کمپنۍ، انوایسونه، نوي اډرونه</h3>';
+function R(){var p=$$('nnOrdPanel'),d=ld(),o='<button class="sec" onclick="nnClose()">✖ بندول</button><h3>🏢 د کمپنیانو اصلي او تمام شود انوایسونه</h3>';
  if(brother())o+='<div class="muted">د ورور حالت: اډر ثبتولای شي، حذف نه شي کولای.</div>';
  if(!cur){
   d.cos.forEach(function(c){o+='<div class="saved"><div class="saved-main"><b>'+h(c.name)+'</b></div><button onclick="nnOrdOpen(\''+c.id+'\')">خلاصول</button>'+(owner()?'<button class="sec" onclick="nnCoDel(\''+c.id+'\')">حذف</button>':'')+'</div>'});
   if(!d.cos.length)o+='<div class="muted">تر اوسه کمپنۍ نشته.</div>';
-  if(owner())o+='<div class="actions"><button onclick="nnCoAdd()">+ نوی حساب (بېنسن، پاکستان، ...)</button></div>';
+  if(owner())o+='<div class="actions"><button onclick="nnCoAdd()">+ نوی حساب جوړ کړئ (بېنسن، پاکستان، ...)</button></div>';
   p.innerHTML=o;return}
  var c=d.cos.filter(function(x){return x.id===cur})[0];if(!c){cur=null;return R()}
- o+='<div class="actions"><button class="sec" onclick="nnOrdOpen(null)">← شاته</button></div><h3>'+h(c.name)+'</h3><div class="actions">'+[['inv','د کمپنۍ انوایسونه'],['all','تمام شود انوایسونه'],['ord','نوی اډر'],['parts','پارټ نمبر عکسونه']].map(function(t){return '<button class="'+(sec===t[0]?'sel':'')+'" onclick="nnSec(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')+'</div>';
+ o+='<div class="actions"><button class="sec" onclick="nnOrdOpen(null)">← شاته</button></div><h3>'+h(c.name)+'</h3><div class="actions">'+[['inv','اصلي انوایسونه'],['all','تمام شود انوایسونه']].map(function(t){return '<button class="'+(sec===t[0]?'sel':'')+'" onclick="nnSec(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')+'</div>';
  var l=d.orders.filter(function(x){return x.co===cur&&x.sec===sec}).slice().reverse();
  l.forEach(function(x){o+='<div class="nn-card" style="border:1px solid #ddd;border-radius:10px;padding:10px;margin:8px 0;background:#fffde7"><b>'+h(x.title)+'</b> <span class="muted">'+h(x.solar)+(x.by==='brother'?' — ورور':'')+'</span>';
   if(x.kind==='pdf'||x.kind==='img')o+='<div><button onclick="nnFile(\''+x.id+'\')">📄 خلاصول</button></div>';
