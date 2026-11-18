@@ -793,6 +793,7 @@ function receiptDates(dateValue){
  let solar='';
  try{solar=new Intl.DateTimeFormat('fa-AF-u-ca-persian',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d)}catch(e){}
  if(!solar){try{solar=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d)}catch(e){solar=''}}
+ if(!solar){try{solar=window.solar(d)}catch(e){solar=''}}
  return {greg,solar};
 }
 async function shareTxnReceiptImage(){
@@ -3277,7 +3278,7 @@ nnOn($$('invoiceTab'));
 // 2) no Gregorian date on printed/image documents
 window.gregFormatted=function(){return ''};
 var _st=window.showTxnReceipt;
-window.showTxnReceipt=function(t){_st(t);var m=$$('inlineTxnReceipt');if(!m)return;m.querySelectorAll('*').forEach(function(n){if(n.children.length===0&&/میلادي/.test(n.textContent)){var p=n.closest('tr,div,p,li')||n;if(p.id!=='inlineTxnReceipt')p.remove()}})};
+window.showTxnReceipt=function(t){_st(t);var m=$$('inlineTxnReceipt');if(!m)return;m.querySelectorAll('*').forEach(function(n){if(n.children.length===0&&/میلادي/.test(n.textContent)){if(n.parentNode&&n.parentNode.classList&&n.parentNode.classList.contains('receipt-date')){n.remove();return}var p=n.closest('tr,div,p,li')||n;if(p.id!=='inlineTxnReceipt')p.remove()}})};
 // 3) reason for adding/reducing money + party note
 var _pa=window.partyAction;
 window.partyAction=function(id,kind){var r=prompt('لامل ولیکئ (مثلاً: قرض اضافه کول، پیسې راوړل، ...)');if(r===null)return;r=r.trim();if(!r){alert('لامل لازمي دی.');return}var n0=ledgerData().transactions.length;_pa(id,kind);var d=ledgerData();if(d.transactions.length>n0){var t=d.transactions.filter(function(x){return x.partyId===id}).slice(-1)[0];if(t){t.note=(t.note?t.note+' — ':'')+'لامل: '+r;ledgerSave(d)}}};
@@ -3414,9 +3415,9 @@ function fin(d,r){d=ld();d.orders.push(r);sv(d);R()}
 function rec(){return new Promise(function(res){if(!window.MediaRecorder||!navigator.mediaDevices){alert('غږ ثبتول نه ملاتړ کیږي.');return res(null)}navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){var m=new MediaRecorder(s),ch=[];m.ondataavailable=function(e){ch.push(e.data)};m.onstop=function(){s.getTracks().forEach(function(t){t.stop()});res(new Blob(ch,{type:m.mimeType||'audio/webm'}))};m.start();alert('ریکارډ روان دی. د درولو لپاره OK ووهئ.');m.stop()}).catch(function(){alert('مایکروفون اجازه نشته.');res(null)})})}
 })();
 </script>
-<div id="nnBuild" class="no-print" style="text-align:center;font-size:12px;color:#687482;padding:6px">نسخه 10</div>
+<div id="nnBuild" class="no-print" style="text-align:center;font-size:12px;color:#687482;padding:6px">نسخه 11</div>
 <script id="nn-build">
-(function(){try{var B='v10';if(localStorage.getItem('NN_BUILD')===B)return;localStorage.setItem('NN_BUILD',B);var p=[];if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}));if(window.caches)p.push(caches.keys().then(function(k){return Promise.all(k.map(function(x){return caches.delete(x)}))}));Promise.all(p).then(function(){location.reload()}).catch(function(){})}catch(e){}})();
+(function(){try{var B='v11';if(localStorage.getItem('NN_BUILD')===B)return;localStorage.setItem('NN_BUILD',B);var p=[];if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}));if(window.caches)p.push(caches.keys().then(function(k){return Promise.all(k.map(function(x){return caches.delete(x)}))}));Promise.all(p).then(function(){location.reload()}).catch(function(){})}catch(e){}})();
 </script>
 <script id="nn-mem">
 (function(){var f=document.getElementById('nnBuild');if(!f)return;var b=document.createElement('button');b.textContent='💾 حافظه وګوره';b.style.cssText='margin-inline-start:10px;background:#ffe600;color:#111;font-weight:800;border:2px solid #c9b300;border-radius:8px;padding:4px 10px';
