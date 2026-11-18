@@ -793,6 +793,7 @@ function receiptDates(dateValue){
  let solar='';
  try{solar=new Intl.DateTimeFormat('fa-AF-u-ca-persian',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d)}catch(e){}
  if(!solar){try{solar=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d)}catch(e){solar=''}}
+ if(!solar){try{solar=window.solar(d)}catch(e){solar=''}}
  return {greg,solar};
 }
 async function shareTxnReceiptImage(){
@@ -3243,7 +3244,7 @@ setInterval(function(){var b=G('wdPanel');if(b&&!b.classList.contains('hide')&&!
 .tabs button.nnOn{background:#ffe600!important;color:#1a1a1a!important;font-weight:800;border:2px solid #c9b300}
 .tabs button.active:not(.nnOn){background:#233343!important}
 body.nn-x #editor,body.nn-x #savedPanel,body.nn-x #ledgerPanel,body.nn-x #inventoryPanel{display:none!important}
-#nnRentPanel button.sel,#nnExpPanel button.sel,#nnOrdPanel button.sel,#sideCustomer:not(.secondary),#sideSupplier:not(.secondary),#catAFN:not(.secondary),#catPKR:not(.secondary),#catUSD:not(.secondary){background:#ffe600!important;color:#111!important;border:2px solid #c9b300!important;font-weight:800}
+#nnRentPanel button.sel,#nnExpPanel button.sel,#nnOrdPanel button.sel,#sideCustomer:not(.secondary),#sideSupplier:not(.secondary),#sideCompany:not(.secondary),#catAFN:not(.secondary),#catPKR:not(.secondary),#catUSD:not(.secondary){background:#ffe600!important;color:#111!important;border:2px solid #c9b300!important;font-weight:800}
 .tabs{flex-wrap:wrap}
 #nnRentPanel,#nnExpPanel{border:2px solid #ffe600}
 #nnRentPanel button,#nnExpPanel button{background:#233343;color:#fff}
@@ -3277,7 +3278,7 @@ nnOn($$('invoiceTab'));
 // 2) no Gregorian date on printed/image documents
 window.gregFormatted=function(){return ''};
 var _st=window.showTxnReceipt;
-window.showTxnReceipt=function(t){_st(t);var m=$$('inlineTxnReceipt');if(!m)return;m.querySelectorAll('*').forEach(function(n){if(n.children.length===0&&/میلادي/.test(n.textContent)){var p=n.closest('tr,div,p,li')||n;if(p.id!=='inlineTxnReceipt')p.remove()}})};
+window.showTxnReceipt=function(t){_st(t);var m=$$('inlineTxnReceipt');if(!m)return;m.querySelectorAll('*').forEach(function(n){if(n.children.length===0&&/میلادي/.test(n.textContent)){if(n.parentNode&&n.parentNode.classList&&n.parentNode.classList.contains('receipt-date')){n.remove();return}var p=n.closest('tr,div,p,li')||n;if(p.id!=='inlineTxnReceipt')p.remove()}})};
 // 3) reason for adding/reducing money + party note
 var _pa=window.partyAction;
 window.partyAction=function(id,kind){var r=prompt('لامل ولیکئ (مثلاً: قرض اضافه کول، پیسې راوړل، ...)');if(r===null)return;r=r.trim();if(!r){alert('لامل لازمي دی.');return}var n0=ledgerData().transactions.length;_pa(id,kind);var d=ledgerData();if(d.transactions.length>n0){var t=d.transactions.filter(function(x){return x.partyId===id}).slice(-1)[0];if(t){t.note=(t.note?t.note+' — ':'')+'لامل: '+r;ledgerSave(d)}}};
@@ -3362,7 +3363,7 @@ function db(){return new Promise(function(res,rej){var r=indexedDB.open(IMG,1);r
 function put(id,b){return db().then(function(d){return new Promise(function(res){var t=d.transaction('b','readwrite');t.objectStore('b').put(b,id);t.oncomplete=res;t.onerror=res})})}
 function get(id){return db().then(function(d){return new Promise(function(res){var q=d.transaction('b').objectStore('b').get(id);q.onsuccess=function(){res(q.result||null)};q.onerror=function(){res(null)}})})}
 function b64(b){return new Promise(function(res){var r=new FileReader();r.onload=function(){var s=String(r.result);res(s.slice(s.indexOf(',')+1))};r.readAsDataURL(b)})}
-function up(id,b){try{var kv=window.__nnKV,D=window.__nnDB;if(!kv||!D||!navigator.onLine)return;b64(b).then(function(s){var ps=[];for(var i=0;i<s.length;i+=200000)ps.push(s.slice(i,i+200000));var bt=D.batch();bt.set(kv.doc('ord_'+id),{n:ps.length,mime:b.type,t:Date.now()});ps.forEach(function(p,i){bt.set(kv.doc('ord_'+id+'.c'+i),{d:p})});return bt.commit()}).catch(function(){})}catch(e){}}
+window.nnSkipped=[];function up(id,b){try{var kv=window.__nnKV,D=window.__nnDB;if(!kv||!D||!navigator.onLine)return;var tot=Number(localStorage.getItem('NN_CLOUD_BYTES')||0);if(b.size>3*1048576||tot+b.size>300*1048576){window.nnSkipped.push(b.size>3*1048576?'ډېر لوی (له 3 MB زیات)':'د آنلاین حد ډک شو');return}b64(b).then(function(s){var ps=[];for(var i=0;i<s.length;i+=200000)ps.push(s.slice(i,i+200000));var bt=D.batch();bt.set(kv.doc('ord_'+id),{n:ps.length,mime:b.type,t:Date.now()});ps.forEach(function(p,i){bt.set(kv.doc('ord_'+id+'.c'+i),{d:p})});return bt.commit().then(function(){localStorage.setItem('NN_CLOUD_BYTES',String(Number(localStorage.getItem('NN_CLOUD_BYTES')||0)+b.size))})}).catch(function(){})}catch(e){}}
 function cloud(id){var kv=window.__nnKV;if(!kv)return Promise.resolve(null);return kv.doc('ord_'+id).get().then(function(d){if(!d.exists)return null;var n=d.data().n,m=d.data().mime,ps=[];for(var i=0;i<n;i++)ps.push(kv.doc('ord_'+id+'.c'+i).get());return Promise.all(ps).then(function(sn){var bin=atob(sn.map(function(x){return x.data().d}).join('')),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);var b=new Blob([u],{type:m});put(id,b);return b})}).catch(function(){return null})}
 function blob(id){return get(id).then(function(b){return b||cloud(id)})}
 function shrink(f){return new Promise(function(res){var u=URL.createObjectURL(f),im=new Image();im.onload=function(){var k=Math.min(1,1200/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=im.naturalWidth*k;c.height=im.naturalHeight*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(res,'image/jpeg',.7)};im.onerror=function(){res(f)};im.src=u})}
@@ -3383,16 +3384,16 @@ function R(){var p=$$('nnOrdPanel'),d=ld(),o='<button class="sec" onclick="nnClo
  o+='<div class="actions"><button class="sec" onclick="nnOrdOpen(null)">← شاته</button></div><h3>'+h(c.name)+'</h3><div class="actions">'+[['inv','اصلي انوایسونه'],['all','تمام شود انوایسونه']].map(function(t){return '<button class="'+(sec===t[0]?'sel':'')+'" onclick="nnSec(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')+'</div>';
  var l=d.orders.filter(function(x){return x.co===cur&&x.sec===sec}).slice().reverse();
  l.forEach(function(x){o+='<div class="nn-card" style="border:1px solid #ddd;border-radius:10px;padding:10px;margin:8px 0;background:#fffde7"><b>'+h(x.title)+'</b> <span class="muted">'+h(x.solar)+(x.by==='brother'?' — ورور':'')+'</span>';
-  if(x.kind==='pdf'||x.kind==='img')o+='<div><button onclick="nnFile(\''+x.id+'\')">📄 خلاصول</button></div>';
+  if(x.kind==='pdf'||x.kind==='img'||x.kind==='file')o+='<div><button onclick="nnFile(\''+x.id+'\')">📄 خلاصول</button></div>';
   if(x.kind==='part')o+='<div id="pi_'+x.id+'"></div><div style="text-align:center;font-weight:800;margin-top:4px">'+h(x.title)+'</div>';
   if(x.text)o+='<div style="white-space:pre-wrap">'+h(x.text)+'</div>';
   if(x.audio)o+='<div id="au_'+x.id+'"></div>';
   if(owner())o+='<textarea style="width:100%;margin-top:6px;background:#fff" placeholder="نوټ" onchange="nnOrdNote(\''+x.id+'\',this.value)">'+h(x.note||'')+'</textarea>';
   else if(x.note)o+='<div class="muted">'+h(x.note)+'</div>';
-  if(owner())o+='<div class="actions"><button class="sec" onclick="nnOrdDel(\''+x.id+'\')">حذف</button>'+(x.kind==='pdf'||x.kind==='img'?'<button class="sec" onclick="nnOrdRename(\''+x.id+'\')">✏ نوم بدلول</button>':'')+'</div>';
+  if(owner())o+='<div class="actions"><button class="sec" onclick="nnOrdDel(\''+x.id+'\')">حذف</button>'+(x.kind==='pdf'||x.kind==='img'||x.kind==='file'?'<button class="sec" onclick="nnOrdRename(\''+x.id+'\')">✏ نوم بدلول</button>':'')+'</div>';
   o+='</div>'});
  if(!l.length)o+='<div class="muted">دلته تر اوسه څه نشته.</div>';
- if(canAdd()){var lab={inv:'+ PDF ثبت کړئ (څو واره یو ځل)',all:'+ PDF ثبت کړئ (څو واره یو ځل)',ord:'+ نوی اډر (نوټ + غږ)',parts:'+ پارټ نمبر عکس'}[sec];o+='<div class="actions"><button onclick="nnAdd()">'+lab+'</button></div>'}
+ if(canAdd()){var lab={inv:'+ PDF ثبت کړئ (څو واره یو ځل)',all:'+ PDF ثبت کړئ (څو واره یو ځل)',ord:'+ نوی اډر (نوټ + غږ)',parts:'+ پارټ نمبر عکس'}[sec];o+='<div class="actions"><button onclick="nnAdd(\'file\')">+ فایل ثبت کړئ (PDF، Excel، ...)</button><button class="sec" onclick="nnAdd(\'img\')">+ عکس ثبت کړئ</button></div>'}
  p.innerHTML=o;
  l.forEach(function(x){if(x.kind==='part')blob(x.id).then(function(b){var e=$$('pi_'+x.id);if(b&&e){var i=new Image();i.className='pn';i.src=URL.createObjectURL(b);e.appendChild(i)}else if(e)e.textContent='عکس نشته'});if(x.audio)blob(x.id+'a').then(function(b){var e=$$('au_'+x.id);if(b&&e){var a=document.createElement('audio');a.controls=true;a.src=URL.createObjectURL(b);e.appendChild(a)}})})}
 window.nnOrdOpen=function(id){cur=id;R()};window.nnSec=function(s){sec=s;R()};
@@ -3400,16 +3401,47 @@ window.nnCoAdd=function(){var n=prompt('د کمپنۍ/حساب نوم:');if(!n||
 window.nnCoDel=function(id){if(!confirm('دا حساب او ټول مواد یې حذف کړم؟'))return;if(!confirm('دوهم تایید: ایا رښتیا؟'))return;var d=ld();d.cos=d.cos.filter(function(c){return c.id!==id});d.orders=d.orders.filter(function(x){return x.co!==id});sv(d);R()};
 window.nnOrdDel=function(id){if(!owner())return;if(!confirm('حذف کړم؟'))return;var d=ld();d.orders=d.orders.filter(function(x){return x.id!==id});sv(d);R()};
 window.nnOrdNote=function(id,v){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(x){x.note=v;sv(d)}};
-window.nnFile=function(id){var w=window.open('','_blank');blob(id).then(function(b){if(!b){if(w)w.close();alert('فایل ونه موندل شو.');return}var u=URL.createObjectURL(b);if(w)w.location.href=u;else location.href=u})};
+window.nnFile=function(id){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(x&&x.kind==='file'){blob(id).then(function(b){if(!b){alert('فایل ونه موندل شو.');return}var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=x.name||x.title;document.body.appendChild(a);a.click();setTimeout(function(){a.remove()},2000)});return}var w=window.open('','_blank');blob(id).then(function(b){if(!b){if(w)w.close();alert('فایل ونه موندل شو.');return}var u=URL.createObjectURL(b);if(w)w.location.href=u;else location.href=u})};
 window.nnOrdRename=function(id){var d=ld(),x=d.orders.filter(function(o){return o.id===id})[0];if(!x)return;var t=prompt('نوی نوم:',x.title);if(!t||!t.trim())return;x.title=t.trim();sv(d);R()};
-window.nnAdd=function(){
- var inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='application/pdf,.pdf,image/*';inp.style.cssText='position:fixed;left:-9999px';document.body.appendChild(inp);
- inp.onchange=function(){var fs=Array.prototype.slice.call(inp.files||[]);setTimeout(function(){inp.remove()},60000);if(!fs.length)return;var n=0,fail=0;
-  fs.reduce(function(pr,f){return pr.then(function(){var isPdf=/\.pdf$/i.test(f.name)||f.type==='application/pdf',id='o'+Date.now()+Math.random().toString(36).slice(2,6),p=isPdf?Promise.resolve(new Blob([f],{type:'application/pdf'})):shrink(f);
-   return p.then(function(b){return put(id,b).then(function(){return get(id)}).then(function(x){if(!x)throw 0;up(id,b);var d=ld(),now=new Date();d.orders.push({id:id,co:cur,sec:sec,solar:sol(now),date:iso(now),by:'owner',kind:isPdf?'pdf':'img',title:f.name.replace(/\.[^.]+$/,'')||'فایل'});sv(d);n++})}).catch(function(){fail++})})},Promise.resolve()).then(function(){R();alert('ثبت شول: '+n+(fail?'\nنه ثبت شول: '+fail:''))})};
+window.nnAdd=function(mode){
+ var inp=document.createElement('input');inp.type='file';inp.multiple=true;if(mode==='img')inp.accept='image/*';inp.style.cssText='position:fixed;left:-9999px';document.body.appendChild(inp);
+ var MT={pdf:'application/pdf',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',xls:'application/vnd.ms-excel',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',doc:'application/msword',csv:'text/csv',txt:'text/plain'};
+ function rb(f){return f.arrayBuffer?f.arrayBuffer():new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result)};r.onerror=function(){rej(r.error||new Error('read'))};r.readAsArrayBuffer(f)})}
+ inp.onchange=function(){var fs=Array.prototype.slice.call(inp.files||[]);setTimeout(function(){inp.remove()},60000);if(!fs.length)return;var n=0,errs=[];
+  fs.reduce(function(pr,f){return pr.then(function(){var id='o'+Date.now()+Math.random().toString(36).slice(2,6),ext=(f.name.split('.').pop()||'').toLowerCase(),isPdf=ext==='pdf'||f.type==='application/pdf',isImg=/^image\//.test(f.type),kind=isPdf?'pdf':isImg?'img':'file';
+   return rb(f).then(function(buf){var raw=new Blob([buf],{type:isPdf?'application/pdf':(f.type||MT[ext]||'application/octet-stream')});return isImg?shrink(raw):raw}).then(function(b){return put(id,b).then(function(){return get(id)}).then(function(x){if(!x)throw new Error('IndexedDB');up(id,b);var d=ld(),now=new Date();d.orders.push({id:id,co:cur,sec:sec,solar:sol(now),date:iso(now),by:'owner',kind:kind,name:f.name,title:f.name.replace(/\.[^.]+$/,'')||'فایل'});sv(d);n++})}).catch(function(e){errs.push(f.name+' — '+((e&&e.message)||e))})})},Promise.resolve()).then(function(){R();alert('ثبت شول: '+n+(errs.length?'\nنه ثبت شول:\n'+errs.join('\n'):'')+(window.nnSkipped.length?'\n\n⚠ '+window.nnSkipped.length+' فایل یوازې په دې موبایل کې پاتې دی، ورور ته نه رسیږي ('+window.nnSkipped[0]+'). ورور ته یې په WhatsApp ولېږئ.':''));window.nnSkipped=[]})};
  inp.click()};
 function fin(d,r){d=ld();d.orders.push(r);sv(d);R()}
 function rec(){return new Promise(function(res){if(!window.MediaRecorder||!navigator.mediaDevices){alert('غږ ثبتول نه ملاتړ کیږي.');return res(null)}navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){var m=new MediaRecorder(s),ch=[];m.ondataavailable=function(e){ch.push(e.data)};m.onstop=function(){s.getTracks().forEach(function(t){t.stop()});res(new Blob(ch,{type:m.mimeType||'audio/webm'}))};m.start();alert('ریکارډ روان دی. د درولو لپاره OK ووهئ.');m.stop()}).catch(function(){alert('مایکروفون اجازه نشته.');res(null)})})}
+})();
+</script>
+<div id="nnBuild" class="no-print" style="text-align:center;font-size:12px;color:#687482;padding:6px">نسخه 10</div>
+<script id="nn-build">
+(function(){try{var B='v10';if(localStorage.getItem('NN_BUILD')===B)return;localStorage.setItem('NN_BUILD',B);var p=[];if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}));if(window.caches)p.push(caches.keys().then(function(k){return Promise.all(k.map(function(x){return caches.delete(x)}))}));Promise.all(p).then(function(){location.reload()}).catch(function(){})}catch(e){}})();
+</script>
+<script id="nn-mem">
+(function(){var f=document.getElementById('nnBuild');if(!f)return;var b=document.createElement('button');b.textContent='💾 حافظه وګوره';b.style.cssText='margin-inline-start:10px;background:#ffe600;color:#111;font-weight:800;border:2px solid #c9b300;border-radius:8px;padding:4px 10px';
+function mb(x){return (x/1048576).toFixed(2)+' MB'}
+b.onclick=function(){var ls=0,keys=0;try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);ls+=(k.length+(localStorage.getItem(k)||'').length)*2;keys++}}catch(e){}
+ var cb=Number(localStorage.getItem('NN_CLOUD_BYTES')||0);var t='☁ هغه فایلونه چې اپ آنلاین لېږلي: '+mb(cb)+' له 300 MB حد څخه\n📱 د متن ډیټا (localStorage): '+mb(ls)+' له تقریباً 5 MB څخه (٪'+Math.round(ls/5242880*100)+')\n';
+ if(navigator.storage&&navigator.storage.estimate){navigator.storage.estimate().then(function(e){t+='📦 د ټول سایټ ځای (فایلونه، عکسونه، غږ): '+mb(e.usage||0)+' له '+mb(e.quota||0)+' څخه (٪'+Math.round((e.usage||0)/(e.quota||1)*100)+')\n';t+='\nدا یوازې د همدې موبایل ارقام دي. د Firebase آنلاین ځای دلته نه ښکاري.';alert(t)}).catch(function(){alert(t)})}else alert(t+'\nد سایټ د ټول ځای اندازه نشته.')};
+f.appendChild(b)})();
+</script>
+<script id="nn-pnote">
+(function(){
+var old=window.renderLedger;if(typeof old!=='function')return;
+function openNote(id){var d=ledgerData(),p=d.parties.find(function(x){return x.id===id});if(!p)return;
+ var o=document.createElement('div');o.style.cssText='position:fixed;left:0;right:0;top:0;bottom:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+ o.innerHTML='<div style="background:#fff;border:3px solid #ffe600;border-radius:14px;padding:14px;width:100%;max-width:520px;direction:rtl"><b style="font-size:17px">📝 نوټ — '+esc(p.name)+'</b><textarea id="nnNoteTxt" style="width:100%;min-height:170px;margin-top:8px;background:#fffde7;font-size:16px" placeholder="دلته نوټ ولیکئ"></textarea><div class="actions" style="margin-top:8px"><button id="nnNoteSave" style="background:#ffe600;color:#111;font-weight:800">ثبت</button><button id="nnNoteCancel" class="secondary">بندول</button></div></div>';
+ document.body.appendChild(o);var ta=document.getElementById('nnNoteTxt');ta.value=p.note||'';ta.focus();
+ document.getElementById('nnNoteCancel').onclick=function(){o.remove()};
+ document.getElementById('nnNoteSave').onclick=function(){var dd=ledgerData(),pp=dd.parties.find(function(x){return x.id===id});if(pp){pp.note=ta.value;ledgerSave(dd)}o.remove();renderLedger()}}
+window.nnPartyNote=openNote;
+window.renderLedger=function(){old.apply(this,arguments);var list=document.getElementById('partyList');if(!list)return;var d=ledgerData();
+ list.querySelectorAll('.ledger-person').forEach(function(card){var bs=card.querySelector('.ledger-person-buttons');if(!bs||bs.querySelector('.nn-note-btn'))return;var nm=(card.querySelector('.saved-main b')||{}).textContent||'';var p=d.parties.find(function(x){return x.type===ledgerSide&&x.currency===ledgerCurrency&&x.name===nm&&!x.settled});if(!p)return;
+  var b=document.createElement('button');b.type='button';b.className='nn-note-btn';b.style.cssText='background:#ffe600;color:#111;font-weight:800;border:2px solid #c9b300';b.textContent=p.note?'📝 نوټ ✔':'📝 نوټ';b.onclick=function(){openNote(p.id)};bs.appendChild(b);
+  if(p.note){var m=card.querySelector('.saved-main');if(m){var n=document.createElement('div');n.style.cssText='white-space:pre-wrap;background:#fffde7;border-right:4px solid #ffe600;padding:4px 8px;margin-top:4px;font-size:13px';n.textContent=p.note;m.appendChild(n)}}})};
+try{renderLedger()}catch(e){}
 })();
 </script>
 </body></html>
